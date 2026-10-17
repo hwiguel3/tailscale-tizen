@@ -4,8 +4,9 @@
   compila a app Web Samsung TV, assina com certificado Partner LOCAL.
   Se -Install for passado, instala o .wgt na TV ligada por SDB.
 
-  Exemplo:
-    .\build-partner-probe-windows.ps1 -Install
+  Exemplos:
+    .\build-partner-probe-windows.ps1 -Variant Baseline -Install
+    .\build-partner-probe-windows.ps1 -Variant Partner -Install
 
   NAO le/exporta certificados nem passwords. Nao executa exploit,
   nao altera firmware, nao chama API de VPN.
@@ -15,6 +16,7 @@ param(
   [string]$Profile = 'SamsungTV_Hugo_2',
   [string]$TizenStudio = 'C:\tizen-studio',
   [string]$ProfilesXml = '',
+  [ValidateSet('Partner','Baseline')][string]$Variant = 'Partner',
   [switch]$Install
 )
 $ErrorActionPreference='Stop'
@@ -124,8 +126,10 @@ Invoke-WebRequest -UseBasicParsing -Uri $repoUrl -OutFile $archive
 Expand-Archive -LiteralPath $archive -DestinationPath $dir
 $folder=@(Get-ChildItem -LiteralPath $dir -Directory | Where-Object { $_.Name -like 'tailscale-tizen-*' })
 if ($folder.Count -ne 1) { throw 'Nao foi possivel localizar a pasta do repositorio extraido.' }
-$proj=Join-Path $folder[0].FullName 'PartnerPrivilegeProbe'
-if (!(Test-Path (Join-Path $proj 'config.xml'))) {throw 'Projeto PartnerPrivilegeProbe/config.xml nao encontrado.'}
+$probeDir = if ($Variant -eq 'Baseline') { 'BaselinePrivilegeProbe' } else { 'PartnerPrivilegeProbe' }
+Write-Host "Versao de teste: $Variant (projeto $probeDir)"
+$proj=Join-Path $folder[0].FullName $probeDir
+if (!(Test-Path (Join-Path $proj 'config.xml'))) {throw "Projeto $probeDir/config.xml nao encontrado."}
 Write-Host 'A compilar Web app TV Tizen 6.0...'
 & $cli build-web -- $proj
 if($LASTEXITCODE -ne 0){throw "A compilacao Web falhou (codigo $LASTEXITCODE)."}
@@ -167,7 +171,7 @@ if($Install){
   if($installCode -ne 0){
     throw "Instalacao Tizen falhou (codigo $installCode). Envia o texto do erro acima, ocultando dados pessoais."
   }
-  Write-Host 'Comando de instalacao terminou com sucesso. Confirma se a app aparece na TV.'
+  Write-Host "Comando de instalacao terminou com sucesso. Confirma se a app $probeDir aparece na TV."
 }else{
   Write-Host 'Sem alteracoes na TV. Para instalar, executa o script com -Install.'
 }
