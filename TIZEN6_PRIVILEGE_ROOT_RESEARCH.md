@@ -84,3 +84,24 @@ A [documentação de common app controls nativos do Tizen](https://github.com/Sa
 Foi criado o `VpnDiscoveryProbe` para procurar **sem executar** a operação VPN e, como controlo, a operação de definições gerais. Isto **não chama** `vpnsvc_init`, não expõe acesso a TUN, não altera as rotas e um resultado negativo não prova ausência de serviço nativo. O script existente para Windows suporta `-Variant VpnDiscovery -Install`, gera `.wgt` assinado com o perfil local e instala através de caminho sem espaços.
 
 **Limitação ainda ativa:** a [FAQ oficial Smart TV da Samsung](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) afirma que televisões Samsung suportam pacotes Web `.wgt`, **não** pacotes nativos `.tpk`. Um certificado Partner Web não resolve esta distinção; é por isso que testar o alcance real do serviço VPN tem de ser separado da simples autenticação Tailscale.
+
+## Decisão após capacidades reais do sistema (Q60A / firmware 2301.1, 17/10/2026)
+
+- `getCapability("http://tizen.org/feature/network.vpn") = false`
+- `network.internet = true` e `network.wifi = true` (controlos)
+- `findAppControl(setting/vpn)` e `findAppControl(setting)`: `NotFoundError` (nenhum handler visível)
+- O `PartnerPrivilegeProbe` instalou e executou `webapis.sso.getVersion() = 3.1`, comprovando que pelo menos a WebAPI SSO Partner está acessível.
+
+**Interpretação:** o firmware atual **não anuncia suporte à funcionalidade VPN**, independentemente do certificado Partner. A app Web não consegue criar VPN global por si. **Não continuar a fazer sondas Web genéricas para tentar descobrir uma VPN escondida.** A presença do motor Go ARMv7 não altera as rotas das outras aplicações.
+
+A [documentação Samsung de capacidades Tizen](https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/device/system.md) afirma que `network.vpn` é true se o dispositivo suporta VPN; `false` é evidência negativa (não prova inexistência de qualquer possibilidade após alteração da plataforma).
+
+**Ponto que ainda merece uma verificação focada:** fontes oficiais apresentam conflito: a [FAQ Smart TV](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) afirma que não aceita `.tpk`, mas a [FAQ Tizen .NET TV](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html) diz que TVs desde 2019 testam aplicações .NET, e [a documentação de criação da Samsung](https://developer.samsung.com/smarttv/develop/tizen-net-tv/getting-started/creating-net-tv-applications.html) apresenta instalação de `.tpk`. Preparado **NativeRuntimeProbe**, um app C# `tizen60` sem VPN, para verificar se a instalação de nativo está disponível nesta unidade. Automatização experimental via `build-tizen6-native-probe.yml`; não instalar um package ainda não assinado/validado.
+
+**Mesmo que `.tpk` funcione:** a Samsung restringe `DllImport` de bibliotecas nativas do TizenFX e exige aprovação Seller Office para distribuir libs nativas empacotadas, segundo [FAQ .NET TV](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html). A existência de uma app .NET não equivale a acesso VPN do kernel.
+
+**Vulnerabilidade SDB conhecida:** [Bishop Fox, 24/02/2026](https://bishopfox.com/blog/samsung-tizen-os-version-through-9-0) demonstrou execução de comandos como utilizador `sdk` nas versões 5.5/7/8/9 e especulou que 6.0 pode ser afetado. **Não demonstrou root**. Não há, nesta investigação, uma cadeia confirmada para root na Q60A `T-NKLADEUC-2301.1`. Os exemplos públicos dos exploradores Synacktiv referem-se ao Q60T e firmware diferentes.
+
+**Firmware:** A página Samsung de suporte do Q60A lista `2301.1` como firmware publicado em 28/01/2026; não permite inferir se a vulnerabilidade SDB já foi corrigida. Não mudar/downgrade firmware sem cópia de segurança e plano de recuperação.
+
+Próxima escolha **sem desperdiçar tempo**: se o teste TPK falhar ou não oferecer privilégios do sistema, qualquer avanço para VPN de toda a TV terá de investigar efetivamente execução com privilégios OS/kernel (não apenas Partner WebAPI). Essa via permanece incerta e potencialmente arriscada; não se deve apresentar como solução pronta.
