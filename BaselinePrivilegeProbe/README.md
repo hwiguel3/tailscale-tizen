@@ -35,3 +35,20 @@ Isto afasta a hipótese de que a declaração do privilégio `sso.partner` seja 
 - Ao comparar, idealmente usar o mesmo aparelho, o mesmo ID de pacote, os mesmos ficheiros e uma assinatura de cada vez.
 
 **Não carregar certificados, passwords, ficheiros `profiles.xml` ou identificadores do dispositivo.**
+
+## Corrigido: falha de `tizen cli-config` com caminhos com espaços (2026-10-17)
+
+Na tentativa Public, a CLI respondeu `configuration must be specified in the form: <key>=<value>` ao tentar `default.profiles.path`. **A compilação nem chegou a começar.** Não é falha do certificado Public ou da televisão.
+
+O script em `scripts/build-partner-probe-windows.ps1` deixou de alterar automaticamente a configuração `default.profiles.path`. Quando o nome do perfil existe apenas num `profiles.xml` fora da CLI atual, tenta localizar os `author.p12` e `distributor.p12` originais e registar o perfil diretamente com `tizen security-profiles add` (utilizado com êxito anteriormente para o perfil Partner), sem substituir perfis existentes. As passwords são pedidas no Windows, não enviadas para o GitHub.
+
+Comandos para descarregar versão exata e testar baseline Public:
+
+```powershell
+$url = "https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/45a1971a7a78af3a81ad9526dfb003f581738d1b/scripts/build-partner-probe-windows.ps1"
+$script = "$env:TEMP\partner-baseline-public-fix.ps1"
+Invoke-WebRequest -Uri $url -OutFile $script
+& $script -Variant Baseline -Profile "SamsungTV_Hugo" -Install
+```
+
+Se não forem encontrados os .p12 do perfil Public, interromper e localizar a pasta por Certificate Manager. Não publicar passwords, p12, XML nem DUID.
