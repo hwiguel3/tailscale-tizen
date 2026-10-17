@@ -126,7 +126,7 @@ namespace HugoNativeProbe
             if (kernel.Length > 65) kernel = kernel.Substring(0, 65);
 
             var sb = new StringBuilder();
-            sb.AppendLine("HUGO - NATIVE VPN LOADER PROBE v0.3");
+            sb.AppendLine("HUGO - NATIVE VPN SERVICE PROBE v0.4");
             sb.AppendLine("Samsung Q60A / Tizen 6.0 - leitura apenas");
             sb.AppendLine("");
             sb.AppendLine(".NET / TPK: EXECUCAO CONFIRMADA");
@@ -139,11 +139,126 @@ namespace HugoNativeProbe
             sb.AppendLine("Interfaces de rede: " + KernelInterfaces());
             sb.AppendLine("Bibliotecas *vpn*: " + VpnLibraries());
             sb.AppendLine("Carregamento vpnsvc: " + VpnLoaderProbe());
-            sb.AppendLine("Nao invoca vpnsvc_init nem altera rotas.");
+            sb.AppendLine("Init apenas por dupla confirmacao no comando.");
             sb.AppendLine("");
-            sb.AppendLine("Nao cria VPN nem altera rotas/firmware.");
+            sb.AppendLine("Nao altera rotas, DNS nem firmware.");
             sb.AppendLine("Bibliotecas/ficheiros invisiveis nao provam ausencia.");
             return sb.ToString();
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int VpnInitDelegate([MarshalAs(UnmanagedType.LPStr)] string name, out IntPtr handle);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int VpnDeinitDelegate(IntPtr handle);
+
+        private TextLabel _label;
+        private bool _armed = false;
+        private bool _completed = false;
+
+        private static string TestVpnInitOnce()
+        {
+            // ATENCAO: vpnsvc_init cria/inicializa um handle de interface VPN.
+            // Executar SOMENTE a pedido explicito, apos 2 OKs na TV.
+            // Nao configurar rotas/DNS, nao subir tunnel, nao pedir appcontrol.
+            IntPtr lib = IntPtr.Zero;
+            IntPtr handle = IntPtr.Zero;
+            int initResult = int.MinValue;
+            string teardown = "nao necessario";
+            try
+            {
+                if (!NativeLibrary.TryLoad("libcapi-vpnsvc.so.1", out lib) ||
+                    lib == IntPtr.Zero)
+                    return "Erro: nao foi possivel carregar a biblioteca.";
+
+                IntPtr initAddress, deinitAddress;
+                if (!NativeLibrary.TryGetExport(lib, "vpnsvc_init", out initAddress) ||
+                    !NativeLibrary.TryGetExport(lib, "vpnsvc_deinit", out deinitAddress))
+                    return "Erro: simbolos vpnsvc_* indisponiveis.";
+
+                var init = (VpnInitDelegate)Marshal.GetDelegateForFunctionPointer(
+                    initAddress, typeof(VpnInitDelegate));
+                var deinit = (VpnDeinitDelegate)Marshal.GetDelegateForFunctionPointer(
+                    deinitAddress, typeof(VpnDeinitDelegate));
+
+                try
+                {
+                    // Nome de teste curto e distinto. Pode pedir ao daemon que
+                    // crie uma interface; nao ativamos conexao nem traffic routing.
+                    initResult = init("hugoprobe", out handle);
+                }
+                catch (Exception ex)
+                {
+                    return "Chamada init lancou " + ex.GetType().Name +
+                           " (possivel bloqueio de interop/sandbox).";
+                }
+                finally
+                {
+                    if (handle != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            var deinitResult = deinit(handle);
+                            teardown = "deinit=" + deinitResult;
+                        }
+                        catch (Exception e)
+                        {
+                            teardown = "falhou (" + e.GetType().Name + ")";
+                        }
+                        handle = IntPtr.Zero;
+                    }
+                }
+
+                string meaning = initResult == 0
+                    ? "INIT RETORNOU SUCESSO. NAO prova VPN global."
+                    : "INIT REJEITADA/FALHOU. Codigo bruto abaixo.";
+                return meaning + "\nret=" + initResult + " (0x" +
+                       unchecked((uint)initResult).ToString("X8") + ")" +
+                       "\nLibertacao do handle: " + teardown;
+            }
+            catch (Exception e)
+            {
+                return "Erro no acesso C ABI (" + e.GetType().Name + ").";
+            }
+            finally
+            {
+                if (lib != IntPtr.Zero)
+                {
+                    try { NativeLibrary.Free(lib); } catch { }
+                }
+            }
+        }
+
+        private void UpdateScreen(string extra)
+        {
+            if (_label == null) return;
+            _label.Text = Diagnostics() + "\n\n" + extra;
+        }
+
+        private void OnKeyEvent(object sender, Window.KeyEventArgs e)
+        {
+            if (e.Key.State != Key.StateType.Down) return;
+            var key = e.Key.KeyPressedName;
+            if (key == "XF86Back" || key == "Escape")
+            {
+                Exit();
+                return;
+            }
+            if (key != "Return" && key != "KP_Enter" && key != "Select") return;
+            if (_completed) return;
+            if (!_armed)
+            {
+                _armed = true;
+                UpdateScreen("CONFIRMAR: pressionar OK novamente para chamar\n" +
+                             "vpnsvc_init (PODE criar interface temporaria).\n" +
+                             "Voltar para cancelar. Sem rotas/DNS.");
+                return;
+            }
+            _completed = true;
+            UpdateScreen("A executar uma chamada de init e deinit...\n" +
+                         "Nao desligar a TV durante este teste.");
+            var result = TestVpnInitOnce();
+            UpdateScreen(result + "\n\nTeste terminado. Voltar para sair.");
         }
 
         protected override void OnCreate()
@@ -153,17 +268,19 @@ namespace HugoNativeProbe
             string message;
             try { message = Diagnostics(); }
             catch (Exception ex) { message = "Erro no diagnostico: " + ex.GetType().Name; }
-            var label = new TextLabel(message)
+            _label = new TextLabel(message)
             {
                 TextColor = new Color(1.0f, 1.0f, 1.0f, 1.0f),
-                PointSize = 20.0f,
+                PointSize = 18.0f,
                 MultiLine = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 WidthResizePolicy = ResizePolicyType.FillToParent,
                 HeightResizePolicy = ResizePolicyType.FillToParent
             };
-            Window.Instance.GetDefaultLayer().Add(label);
+            Window.Instance.GetDefaultLayer().Add(_label);
+            Window.Instance.KeyEvent += OnKeyEvent;
+            UpdateScreen("Pressiona OK duas vezes para testar init do daemon VPN.\nVoltar = cancelar.");
         }
 
         static void Main(string[] args)
