@@ -33,3 +33,18 @@ Mesmo com o pacote corretamente assinado, só fazer uma tentativa de instalaçã
 - https://developer.samsung.com/smarttv/develop/specifications/general-specifications.html
 - https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html
 - https://developer.samsung.com/smarttv/develop/faq/application-testing.html
+
+## Resultado CI (17/10/2026)
+
+**GitHub Actions run [39041583763](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39041583763) terminou com sucesso**, incluindo dotnet build com .NET Core 3.1 e Tizen.NET.Sdk/1.0.8, verificação da presença de um .tpk e upload do artefacto **native-tizen60-unverified-test-package**. Confirma que o código-fonte compila num SDK antigo para Tizen 6; **não confirma compatibilidade com a TV, privilégios de kernel nem VPN global**.
+
+O artefacto tem assinatura experimental do CI, **não** o certificado Samsung para o DUID. Para testar instalação real, transferir o ZIP da página de run no GitHub para a pasta Downloads e executar no Windows:
+
+    $url="https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/tizen6-armv7-compat/scripts/install-native-tizen60-test.ps1"
+    $script="$env:TEMP\install-native-tizen60-test.ps1"
+    Invoke-WebRequest -Uri $url -OutFile $script
+    & $script
+
+O script verifica o manifesto, re-assina localmente com SamsungTV_Hugo_2 via tizen package -t tpk -s ... -- pacote.tpk, verifica duas assinaturas e tenta **uma única instalação** via CLI com caminho/ficheiro sem espaços. A [documentação oficial da Tizen CLI](https://github.com/Samsung/tizen-docs/blob/master/docs/sdk-tools/baseline-sdk/common-tools/command-line-interface.md) confirma re-assinatura de pacote existente. Nenhuma chave é enviada ao GitHub. A assinatura local ainda não foi testada na máquina do utilizador.
+
+Não tentar instalar o artefacto de CI antes da assinatura local. Se falhar, guardar erro e parar.
