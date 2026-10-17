@@ -117,3 +117,25 @@ Documentação oficial do Tizen: https://github.com/Samsung/tizen-docs/blob/mast
 Descarregar esse ZIP manualmente para Downloads, sem extrair. Atualizar com [scripts/install-native-tizen60-test.ps1](https://github.com/hwiguel3/tailscale-tizen/blob/tizen6-armv7-compat/scripts/install-native-tizen60-test.ps1) já preparado para o novo nome de artifact. O script re-assina o TPK localmente com perfil `SamsungTV_Hugo_2`; não carregar certificados para GitHub. A instalação pode ser rejeitada pelo gestor de pacotes se o privilégio não for autorizado — **esse resultado é também relevante e não deve ser contornado**.
 
 Na TV, fotografar primeiro o ecrã de confirmação. Se optar por executar a chamada, fotografar o valor do retorno. Um retorno zero significa apenas que a criação de handle foi aceite naquele instante; **não** que o Tailscale ou uma VPN global esteja funcional.
+
+## Resultado do teste v0.4 na TV real — VPN não suportada pela plataforma atual (17/10/2026)
+
+Fotografia da Samsung QE43Q60AAUXXH / T-NKLADEUC-2301.1:
+
+- `vpnsvc_init("hugoprobe", &handle)` devolveu **-1073741822**, em hexadecimal **0xC0000002**.
+- O `handle` permaneceu nulo e o programa mostrou `Libertacao do handle: nao necessario`; não houve túnel VPN estabelecido.
+- O valor corresponde ao erro genérico **`TIZEN_ERROR_NOT_SUPPORTED`**: `TIZEN_ERROR_UNKNOWN = -1073741824`, `TIZEN_ERROR_NOT_SUPPORTED = TIZEN_ERROR_UNKNOWN + 2`. Referência de cabeçalho Tizen: https://github.com/nnstreamer/api/blob/d0a687d405a0e04fba8c7507f1a212244fe3d4b9/c/include/platform/tizen_error.h
+- A API documenta `VPNSVC_ERROR_NOT_SUPPORTED` como resultado possível de `vpnsvc_init()`: https://docs.stg.tizen.org/application/native/api/iot-headed/6.0/group__CAPI__NETWORK__VPN__SERVICE__MODULE.html
+- O resultado é **fortemente consistente com VPN desativada/não suportada** no firmware, em linha com `getCapability(network.vpn) = false` e com ausência de `/dev/net/tun` e `CAP_NET_ADMIN` para esta app.
+
+### Limites e implicações
+
+Não confundir `TIZEN_ERROR_NOT_SUPPORTED` com `PERMISSION_DENIED`. O erro não prova que o certificado Partner tenha sido rejeitado. A app Partner Web SSO funcionou e o pacote TPK de teste foi aceite. A presença de `libcapi-vpnsvc.so.1` prova carregamento da biblioteca mas não que o backend VPN exista ou seja ativável neste modelo.
+
+A assinatura C observada no código (`const char*`, `vpnsvc_h*`) corresponde à documentação. No entanto, o manifesto v0.4 declarou apenas `http://developer.samsung.com/tizen/vpnservice`, como indicado no guia; a referência genérica da API menciona ainda `http://tizen.org/privilege/vpnservice` e `http://tizen.org/privilege/internet`. Esses privilégios **podem ser adicionais**, mas a saída observada é `NOT_SUPPORTED`, não `PERMISSION_DENIED`. Não insistir em testes que tentem iniciar VPN sem evidência nova.
+
+### Decisão de engenharia
+
+**Não investir agora na interface gráfica nem na integração Tailscale como VPN global da TV.** O obstáculo documentado não é instalação de `.tpk`, assinatura Partner ou carregamento de biblioteca, mas suporte real da plataforma para tun/daemon/roteamento global. Para manter o objetivo estrito do utilizador (sem gateway externo), estudar apenas caminhos de privilégio de sistema/firmware adequados ao **modelo+firmware exatos**, com método de recuperação, sem flashear às cegas. Não afirmar que root foi alcançado ou que exista uma exploração fiável para esta versão.
+
+Nota de interface: o ecrã v0.4 dizia `leitura apenas`, mas pressionar OK duas vezes executava uma inicialização. É texto incorreto que deve ser substituído por aviso claro antes de qualquer reutilização.
