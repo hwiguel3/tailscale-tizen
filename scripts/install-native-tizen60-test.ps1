@@ -27,9 +27,9 @@ if(!(Test-Path -LiteralPath $sdb)){throw "SDB nao encontrado: $sdb"}
 
 if(!$ZipPath) {
   $downloads=Join-Path $env:USERPROFILE 'Downloads'
-  $candidates=@(Get-ChildItem -LiteralPath $downloads -File -Filter 'native-tizen60-vpn-loader-diagnostics*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+  $candidates=@(Get-ChildItem -LiteralPath $downloads -File -Filter 'native-tizen60-vpn-init-optional*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
   if($candidates.Count -eq 0) {
-    throw "Descarrega primeiro o artifact ZIP 'native-tizen60-vpn-loader-diagnostics' da compilacao mais recente no GitHub, para Downloads."
+    throw "Descarrega primeiro o artifact ZIP 'native-tizen60-vpn-init-optional' da compilacao mais recente no GitHub, para Downloads."
   }
   $ZipPath=$candidates[0].FullName
 }
@@ -81,7 +81,7 @@ Write-Host "A atualizar a aplicacao .NET de diagnostico; SOMENTE LEITURA, nao mo
 & $cli install -s $serial -n $targetName -- $stage
 $installCode=$LASTEXITCODE
 if($installCode -eq 0){
- Write-Host "TPK INSTALADO. Abre 'Hugo Native VPN Loader Probe' na TV e fotografa os resultados."
+ Write-Host "TPK INSTALADO. Abre 'Hugo VPN Service Probe' na TV e fotografa os resultados."
  Write-Host "Instalacao .NET nao demonstra acesso VPN global."
 }else{
  Write-Host "TV REJEITOU o TPK (codigo CLI $installCode). O teste foi concluido sem alterar firmware."
