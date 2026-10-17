@@ -53,3 +53,24 @@ Invoke-WebRequest $url -OutFile $script
 A **compilação Web anterior foi bem-sucedida**, mas a instalação não foi confirmada. Warnings sobre ausência de assinaturas no material de **entrada** são frequentemente informativos, mas o pacote de **saída** deve conter as assinaturas.
 
 Códigos Samsung TV a distinguir: `205` sugere falha no certificado; `118` pode indicar pacote alterado ou inválido. Consultar: https://developer.samsung.com/smarttv/develop/faq/application-testing.html e https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/command-line-interface.html . Não assumir resolução até uma instalação efetiva.
+
+## Diagnóstico de assinatura ausente (17/10/2026)
+
+Foi confirmado no teste real: `tizen package` concluiu com exit code 0, mas o WGT não continha `author-signature.xml`. Isto é **erro de assinatura/integração do perfil**, e não erro de instalação por falta de permissões Partner.
+
+O script foi atualizado para confirmar **antes de compilar** que a CLI encontra `SamsungTV_Hugo_2` através de `tizen security-profiles list`. Se não encontra, procura `profiles.xml` nas localizações habituais. Quando encontra um perfil único, configura `default.profiles.path` para a CLI, depois valida novamente. Trata-se de alteração **persistente na configuração de caminho da CLI**, sem mudar os certificados. Se não encontrar, pára com diagnóstico seguro em vez de compilar um pacote inútil. Também valida a existência dos ficheiros de assinatura no pacote.
+
+Se o `profiles.xml` estiver noutro local, indicar ao script (sem enviar ficheiros sensíveis):
+
+```powershell
+& "$env:TEMP\build-partner-probe-windows.ps1" -ProfilesXml "C:\PASTA\profiles.xml" -Install
+```
+
+Para verificar a CLI em modo só de leitura:
+
+```powershell
+& "C:\tizen-studio\tools\ide\bin\tizen.bat" security-profiles list
+& "C:\tizen-studio\tools\ide\bin\tizen.bat" cli-config -l | Select-String "profiles.path"
+```
+
+**Nunca partilhar `profiles.xml`, `.p12` nem palavras-passe.** Ocultar caminhos pessoais se necessário.
