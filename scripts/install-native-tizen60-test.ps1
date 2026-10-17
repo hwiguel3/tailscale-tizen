@@ -2,7 +2,7 @@
 <#
  Q60A native .TPK compatibility check. This TEST does NOT create a VPN.
  Requires artifact ZIP downloaded by user from:
- https://github.com/hwiguel3/tailscale-tizen/actions/runs/39041583763
+ https://github.com/hwiguel3/tailscale-tizen/actions/workflows/build-tizen6-native-probe.yml
 
  Usage:
    .\install-native-tizen60-test.ps1
@@ -27,9 +27,9 @@ if(!(Test-Path -LiteralPath $sdb)){throw "SDB nao encontrado: $sdb"}
 
 if(!$ZipPath) {
   $downloads=Join-Path $env:USERPROFILE 'Downloads'
-  $candidates=@(Get-ChildItem -LiteralPath $downloads -File -Filter 'native-tizen60-unverified-test-package*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+  $candidates=@(Get-ChildItem -LiteralPath $downloads -File -Filter 'native-tizen60-network-diagnostics*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
   if($candidates.Count -eq 0) {
-    throw "Descarrega primeiro o artifact ZIP 'native-tizen60-unverified-test-package' do run 39041583763 no GitHub, para Downloads."
+    throw "Descarrega primeiro o artifact ZIP 'native-tizen60-network-diagnostics' da compilacao mais recente no GitHub, para Downloads."
   }
   $ZipPath=$candidates[0].FullName
 }
@@ -77,11 +77,11 @@ Write-Host "Pacote re-assinado e verificado. A consultar TV SDB..."
 $devices=@(& $sdb devices 2>&1 | Where-Object {$_ -match '^\S+\s+device(?:\s|$)'})
 if($devices.Count -ne 1){throw "Esperava exatamente 1 Samsung TV ligada por SDB; encontrei $($devices.Count)."}
 $serial=([regex]::Match($devices[0], '^\S+')).Value
-Write-Host "A tentar instalar SOMENTE o teste .NET minimo; nao modifica VPN/rotas/firmware."
+Write-Host "A atualizar a aplicacao .NET de diagnostico; SOMENTE LEITURA, nao modifica VPN/rotas/firmware."
 & $cli install -s $serial -n $targetName -- $stage
 $installCode=$LASTEXITCODE
 if($installCode -eq 0){
- Write-Host "TPK INSTALADO. Abre 'Hugo Native Probe' na TV (se aparecer) e fotografa."
+ Write-Host "TPK INSTALADO. Abre 'Hugo Native Network Probe' na TV e fotografa os resultados."
  Write-Host "Instalacao .NET nao demonstra acesso VPN global."
 }else{
  Write-Host "TV REJEITOU o TPK (codigo CLI $installCode). O teste foi concluido sem alterar firmware."
