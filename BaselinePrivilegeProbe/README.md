@@ -1,0 +1,64 @@
+# Hugo Baseline Probe — controlo sem privilégio Partner
+
+Uma app Web `.wgt` mínima para Samsung Tizen 6.0, assinada com o mesmo certificado Partner `SamsungTV_Hugo_2`, mas sem declarar `sso.partner` nem qualquer outro privilégio.
+
+O anterior `Hugo Partner Probe` foi assinado e continha `author-signature.xml` / `signature1.xml`, mas o Tizen respondeu apenas `Failed to install Tizen application`. `install-permit` respondeu `Install Permitted`; isso não valida certificado nem privilégio.
+
+## Teste de controlo
+
+No Windows, após descarregar a última versão de `scripts/build-partner-probe-windows.ps1`, executar:
+
+```powershell
+& "$env:TEMP\partner-probe-baseline.ps1" -Variant Baseline -Install
+```
+
+O script cria um WGT com ID separado do probe anterior, usa a CLI Tizen e o certificado já registado e verifica as assinaturas antes de instalar.
+
+## Interpretação
+
+- **Baseline instala:** assinatura Partner e manifesto mínimo são aceites nesta TV. A falha anterior pode dever-se ao privilégio `sso.partner` ou a outra diferença do manifesto/código; **não prova VPN**.
+- **Baseline falha:** problema pode ser certificado Partner associado a DUID, cadeia de confiança, manifesto ou ambiente. Próximo teste adequado: repetir baseline com o **perfil Public conhecido que já instalou apps**. Se esse funcionar e Partner não, focar a autorização do certificado Partner; não continuar a mexer no motor da VPN.
+- **Primeiro assinou e depois install falhou:** recolher mensagem integral da ferramenta e, se disponível, inspeção de metadados do certificado (sem enviar .p12, passwords ou DUID).
+
+Conserva o `PartnerPrivilegeProbe` original para comparação; nenhum dos testes modifica firmware ou liga VPN.
+
+## Resultado do controlo Partner (17/10/2026)
+
+O teste **sem privilégio** (`BaselinePrivilegeProbe`) assinado com `SamsungTV_Hugo_2` **também falhou** durante `tizen install`, após a compilação, as duas assinaturas e a transferência terem sido concluídas. A CLI só mostrou `Failed to install Tizen application` (código 1). No teste precedente, `install-permit` devolveu `Install Permitted`.
+
+Isto afasta a hipótese de que a declaração do privilégio `sso.partner` seja **a única** causa. Não estabelece se a causa é o certificado, DUID, validade, conectividade externa da TV, pacote ou manifesto.
+
+**Próximo teste A/B recomendado, sem alterar código:** repetir o mesmo `BaselinePrivilegeProbe` com perfil Public pré-existente `SamsungTV_Hugo`. O helper `scripts/build-partner-probe-windows.ps1` já aceita `-Variant Baseline -Profile SamsungTV_Hugo -Install`. Se a CLI não tiver este perfil registado, reutilizar os respetivos `.p12` locais sem expor passwords no GitHub; o script poderá pedir as passwords no PC.
+
+- **Public instala, Partner falha:** comparar autorização DUID e cadeia de certificados Partner, e testar conectividade da TV à Internet para verificação da assinatura; não concluir que Partner é impossível.
+- **Public e Partner falham:** comparar primeiro o manifesto e o processo de instalação com a aplicação Web que já foi instalada anteriormente via VS Code; não continuar a testar root ou VPN sem corrigir esta base.
+- Ao comparar, idealmente usar o mesmo aparelho, o mesmo ID de pacote, os mesmos ficheiros e uma assinatura de cada vez.
+
+**Não carregar certificados, passwords, ficheiros `profiles.xml` ou identificadores do dispositivo.**
+
+## Corrigido: falha de `tizen cli-config` com caminhos com espaços (2026-10-17)
+
+Na tentativa Public, a CLI respondeu `configuration must be specified in the form: <key>=<value>` ao tentar `default.profiles.path`. **A compilação nem chegou a começar.** Não é falha do certificado Public ou da televisão.
+
+O script em `scripts/build-partner-probe-windows.ps1` deixou de alterar automaticamente a configuração `default.profiles.path`. Quando o nome do perfil existe apenas num `profiles.xml` fora da CLI atual, tenta localizar os `author.p12` e `distributor.p12` originais e registar o perfil diretamente com `tizen security-profiles add` (utilizado com êxito anteriormente para o perfil Partner), sem substituir perfis existentes. As passwords são pedidas no Windows, não enviadas para o GitHub.
+
+Comandos para descarregar versão exata e testar baseline Public:
+
+```powershell
+$url = "https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/45a1971a7a78af3a81ad9526dfb003f581738d1b/scripts/build-partner-probe-windows.ps1"
+$script = "$env:TEMP\partner-baseline-public-fix.ps1"
+Invoke-WebRequest -Uri $url -OutFile $script
+& $script -Variant Baseline -Profile "SamsungTV_Hugo" -Install
+```
+
+Se não forem encontrados os .p12 do perfil Public, interromper e localizar a pasta por Certificate Manager. Não publicar passwords, p12, XML nem DUID.
+
+## Prova de instalação — 17/10/2026
+
+Após múltiplas falhas com a CLI (caminhos longos e espaços), a **mesma aplicação Baseline já assinada** foi copiada para um nome e caminho curtos, sem alterar os bytes do pacote (SHA256 idêntico). A instalação foi concluída com `Tizen application is successfully installed` e a app foi aberta na Q60A Tizen 6.0 (fotos recebidas). **Não se pode atribuir causalidade definitiva aos espaços sem mais testes**, mas este procedimento funcionou.
+
+A frase no ecrã `Assinada com certificado Partner` é **texto estático** e não atesta o certificado real. A instalação de controlo pode ter usado a última assinatura Public. Confirmar classe do certificado de distribuição por inspeção do `.wgt` fora da TV, se relevante.
+
+**Próxima etapa prioritária:** instalar o pacote *PartnerPrivilegeProbe* já assinado anteriormente (com `sso.partner` no `config.xml`) pelo **mesmo método de nome e caminho sem espaços**. Script: `scripts/install-partner-probe-shortpath.ps1`. O script seleciona pacote assinado, confirma o ID e o privilégio no manifesto, compara SHA256 da cópia e instala pela CLI sem recompilar, sem passwords e sem modificar o firmware. Se instalar, executar e fotografar as mensagens de `Partner SSO` no ecrã. A instalação ou execução de `webapis.sso` não demonstram a disponibilidade da API VPN nativa.
+
+Referência: https://github.com/hwiguel3/tailscale-tizen/blob/tizen6-armv7-compat/scripts/install-partner-probe-shortpath.ps1

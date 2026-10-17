@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hugo VPN Discovery</title>
+<style>
+*{box-sizing:border-box}html,body{background:#151821;color:#f4f6fa;font:27px Arial,sans-serif;margin:0;min-height:100%}
+main{margin:5vh 7vw}h1{font-size:52px;margin:0 0 12px}.sub{font-size:23px;color:#b8c2d1;margin-bottom:26px}
+section{border:1px solid #526077;background:#252b39;border-radius:14px;padding:23px 28px;margin:15px 0;min-height:90px;white-space:pre-wrap}
+strong{color:#edf3fe}small{display:block;color:#b0bbca;font-size:20px;margin-top:20px;line-height:1.35}
+button{background:#f2f4fb;color:#141822;border:0;border-radius:10px;padding:19px 30px;font-size:27px;font-weight:bold;margin-top:15px}
+button:focus{outline:5px solid #94b2ff}.good{border-color:#67c899}.warn{border-color:#edb977}
+</style></head>
+<body><main>
+<h1>Hugo · VPN Discovery</h1>
+<p class="sub">Samsung Q60A / Tizen 6.0 · apenas consulta · sem ligar ou desligar VPN</p>
+<section id="capabilities">Capacidade VPN do sistema: a aguardar...</section>
+<section id="api">A verificar o acesso ao Tizen Application API...</section>
+<section id="vpn">VPN app-control: a aguardar...</section>
+<section id="settings">Controlo: definições gerais, a aguardar...</section>
+<button id="repeat" autofocus>Repetir diagnóstico</button>
+<small>Consulta getCapability() e findAppControl(). Não abre aplicações, não invoca vpnsvc_init() e não modifica rede nem firmware.<br>
+O resultado não comprova nem exclui a existência do serviço VPN nativo.</small>
+</main>
+<script>
+(function(){
+'use strict';
+var api=document.getElementById('api'),vpn=document.getElementById('vpn'),settings=document.getElementById('settings'),capabilities=document.getElementById('capabilities');
+var button=document.getElementById('repeat');
+function desc(e){return (e&&e.name?e.name:'Erro')+': '+(e&&e.message?e.message:String(e));}
+function find(operation,output,title){
+ output.className='';
+ output.textContent=title+': A consultar...';
+ try {
+   var req=new tizen.ApplicationControl(operation,null,null,null,null);
+   tizen.application.findAppControl(req,function(apps){
+     if(apps&&apps.length){
+       output.textContent=title+': '+apps.length+' aplicação(ões) declararam aceitar esta operação.\nNão comprova o daemon VPN nem acesso a interface TUN.';
+       output.className='good';
+     }else{
+       output.textContent=title+': sem aplicações registadas visíveis.\nResultado inconclusivo sobre VPN nativa.';
+       output.className='warn';
+     }
+   },function(e){
+     output.textContent=title+': '+desc(e)+'.\nNotFoundError também pode significar nenhuma aplicação compatível.';
+     output.className='warn';
+   });
+ }catch(e){
+   output.textContent=title+': chamada falhou — '+desc(e);
+   output.className='warn';
+ }
+}
+function checkCapabilities(){
+ capabilities.className='';
+ if(typeof tizen==='undefined'||!tizen.systeminfo||
+    typeof tizen.systeminfo.getCapability!=='function'){
+   capabilities.textContent='SystemInfo getCapability: indisponível neste ambiente.';
+   capabilities.className='warn';
+   return;
+ }
+ var keys=[
+   ['VPN (network.vpn)','http://tizen.org/feature/network.vpn'],
+   ['Internet (controlo)','http://tizen.org/feature/network.internet'],
+   ['Wi-Fi (controlo)','http://tizen.org/feature/network.wifi']
+ ];
+ var messages=[];
+ var vpnVal;
+ for(var i=0;i<keys.length;i++){
+   try{
+     var value=tizen.systeminfo.getCapability(keys[i][1]);
+     messages.push(keys[i][0]+': '+String(value)+' ('+typeof value+')');
+     if(i===0) vpnVal=value;
+   }catch(e){
+     messages.push(keys[i][0]+': ERRO '+desc(e));
+   }
+ }
+ var interpretation='Não confirma que a app consiga criar uma VPN global.';
+ if(vpnVal===true) interpretation='VPN anunciada como suportada; permissões e API nativa ainda por verificar.';
+ if(vpnVal===false) interpretation='VPN NÃO anunciada como suportada; poderá faltar no perfil TV/firmware.';
+ capabilities.textContent='Capacidades do Tizen (consulta de leitura):\n'+messages.join('\n')+'\n'+interpretation;
+ capabilities.className=vpnVal===true?'good':'warn';
+}
+function check(){
+ checkCapabilities();
+ if(typeof tizen==='undefined'||!tizen.application||!tizen.ApplicationControl||
+   typeof tizen.application.findAppControl!=='function'){
+   api.textContent='Tizen Application API: indisponível.';
+   vpn.textContent='VPN app-control: não testado.';
+   settings.textContent='Definições: não testado.';
+   api.className='warn';
+   return;
+ }
+ api.textContent='Tizen Application API: disponível.';
+ api.className='good';
+ find('http://tizen.org/appcontrol/operation/setting/vpn',vpn,'VPN app-control');
+ find('http://tizen.org/appcontrol/operation/setting',settings,'Definições (controlo)');
+}
+button.addEventListener('click',check);
+check();
+})();
+</script></body></html>

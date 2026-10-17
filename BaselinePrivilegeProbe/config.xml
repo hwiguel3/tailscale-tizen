@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://example.org/hugo-baseline-probe"
+        version="1.0.0"
+        viewmodes="fullscreen">
+  <tizen:application id="HugoTVB001.BaselineProbe" package="HugoTVB001" required_version="6.0"/>
+  <tizen:profile name="tv"/>
+  <content src="index.html"/>
+  <name>Hugo Baseline Probe</name>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

@@ -1,0 +1,141 @@
+# Hugo Native Runtime Probe — Tizen 6.0 / Samsung Q60A
+
+**Teste de viabilidade, não aplicação VPN.** Este projeto isola uma única pergunta: uma Samsung Q60A real com Tizen 6.0 aceita e inicia um **.tpk** Tizen .NET compilado para `tizen60`?
+
+Não instala nenhum motor Tailscale, não invoca `vpnsvc_init()`, não abre TUN, não muda rotas nem mexe em firmware. Usa `Tizen.NET.Sdk/1.0.8` com `TargetFramework=tizen60`, conforme a [Samsung descreve para versões antigas](https://developer.samsung.com/tizen/blog/en/2019/06/13/using-tizennetsdk-as-sdk-style).
+
+## Porque testar
+
+A Samsung documenta que a [API VPN nativa](https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/connectivity/vpn.md) é C, enquanto o SDK de TV Web não a expõe. A [FAQ de testes](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) diz que TVs comerciais só suportam `.wgt`, mas o [FAQ específico .NET TV](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html) diz que aplicações .NET são testáveis em Samsung TV desde 2019 e [este guia](https://developer.samsung.com/smarttv/develop/tizen-net-tv/getting-started/creating-net-tv-applications.html) explica `.tpk`.
+
+Precisamos de uma prova no **modelo específico** em vez de generalizar.
+
+## Estado da capacidade VPN
+
+Em 17/10/2026, o `VpnDiscoveryProbe` na Q60A devolveu:
+- `http://tizen.org/feature/network.vpn: false`
+- `network.internet: true`
+- `network.wifi: true`
+- Operações `setting/vpn` e `setting`: `NotFoundError`
+
+Isto indica fortemente que **a VPN nativa não é suportada pela plataforma da TV tal como está**, embora `false` não prove que modificações privilegiadas sejam impossíveis. Uma instalação .NET bem-sucedida também não basta: [a Samsung limita DllImport em bibliotecas do TizenFX](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html) e bibliotecas nativas empacotadas exigem acesso adicional a grupos Partner Seller Office.
+
+## Build
+
+A workflow GitHub Actions `build-tizen6-native-probe.yml` tenta compilar este projeto com .NET Core 3.1 no Linux. O resultado é experimental; qualquer erro de compilação será estudado na Action e não obriga a instalar .NET no Windows.
+
+O **pacote de GitHub Actions, se produzido, não tem necessariamente assinatura Samsung adequada** à TV. **Não instalar nenhum artefacto ainda** sem verificar pacote e assiná-lo localmente com o perfil Samsung autorizado para o DUID. Não fazer upload de certificados, chaves ou passwords.
+
+Mesmo com o pacote corretamente assinado, só fazer uma tentativa de instalação segura, guardando a mensagem de erro. **Não** usar `sdb root`, exploits ou flash de firmware nesta etapa.
+
+## Referências
+
+- https://developer.samsung.com/smarttv/develop/specifications/general-specifications.html
+- https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html
+- https://developer.samsung.com/smarttv/develop/faq/application-testing.html
+
+## Resultado CI (17/10/2026)
+
+**GitHub Actions run [39041583763](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39041583763) terminou com sucesso**, incluindo dotnet build com .NET Core 3.1 e Tizen.NET.Sdk/1.0.8, verificação da presença de um .tpk e upload do artefacto **native-tizen60-unverified-test-package**. Confirma que o código-fonte compila num SDK antigo para Tizen 6; **não confirma compatibilidade com a TV, privilégios de kernel nem VPN global**.
+
+O artefacto tem assinatura experimental do CI, **não** o certificado Samsung para o DUID. Para testar instalação real, transferir o ZIP da página de run no GitHub para a pasta Downloads e executar no Windows:
+
+    $url="https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/tizen6-armv7-compat/scripts/install-native-tizen60-test.ps1"
+    $script="$env:TEMP\install-native-tizen60-test.ps1"
+    Invoke-WebRequest -Uri $url -OutFile $script
+    & $script
+
+O script verifica o manifesto, re-assina localmente com SamsungTV_Hugo_2 via tizen package -t tpk -s ... -- pacote.tpk, verifica duas assinaturas e tenta **uma única instalação** via CLI com caminho/ficheiro sem espaços. A [documentação oficial da Tizen CLI](https://github.com/Samsung/tizen-docs/blob/master/docs/sdk-tools/baseline-sdk/common-tools/command-line-interface.md) confirma re-assinatura de pacote existente. Nenhuma chave é enviada ao GitHub. A assinatura local ainda não foi testada na máquina do utilizador.
+
+Não tentar instalar o artefacto de CI antes da assinatura local. Se falhar, guardar erro e parar.
+
+## Confirmacao no televisor e diagnóstico nativo 0.2 (17/10/2026)
+
+O utilizador mostrou o TPK com ID com.hugo.nativeprobe instalado e executado na Q60A Tizen 6.0: o ecrã da aplicação NUI apareceu. Isto comprova suporte efetivo a apps .NET TPK neste modelo, **não acesso root nem VPN global**.
+
+A nova versão **0.2.0** faz somente leituras de sistema no próprio processo: existência visível de /dev/net/tun (sem o abrir), /proc/self/status para UID, CapEff e CAP_NET_ADMIN (bit 12), NoNewPrivs, versão de kernel, nomes de interfaces sem IP/MAC e pesquisa superficial de bibliotecas VPN em pastas públicas. Não chama bibliotecas nativas, não muda rotas, não inicia VPN e não faz root.
+
+Compilação e artefacto **confirmados** nas [GitHub Actions #39042322994](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042322994): job completo SUCCESS, artefacto ZIP **native-tizen60-network-diagnostics** (~19 KB).
+
+### Para instalar v0.2
+
+1. Descarregar para Downloads o ZIP **native-tizen60-network-diagnostics** em https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042322994 (não extrair).
+2. No PowerShell:
+
+    $url = "https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/7afa15f690e6166ae8ae0338c35a00d1af9b4da9/scripts/install-native-tizen60-test.ps1"
+    $script = "$env:TEMP\install-native-network-probe.ps1"
+    Invoke-WebRequest -Uri $url -OutFile $script
+    & $script
+
+3. O script verifica manifesto e re-assina LOCALMENTE com certificado Samsung Partner já configurado. Não carregar P12, passwords ou DUID.
+4. Abrir Hugo Native Network Probe e fotografar. O teste não identifica IP ou MAC.
+
+CAP_NET_ADMIN ausente significa que o processo não tem a capacidade Linux para gerir rotas/interfaces diretamente, mas não prova ausência de qualquer serviço privilegiado. A Samsung proíbe DllImport para bibliotecas TizenFX em apps .NET TV e exige Seller Office Partner para bibliotecas nativas empacotadas: https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html .
+
+## Resultado v0.2 na Samsung real e teste v0.3 (17/10/2026)
+
+A fotografia da app TPK no televisor confirmou:
+
+- Kernel **4.1.10**, UID(s) do processo **5001 5001 5001 5001**, CapEff=0000000000000000; portanto **CAP_NET_ADMIN ausente**.
+- **/dev/net/tun não visível** ao processo; isto não prova que o kernel não suporte TUN, apenas que este processo não vê o caminho.
+- Interfaces visíveis **wlan0, p2p0, eth0**.
+- Bibliotecas com nome vpn visíveis: **libcapi-vpnsvc.so.1** e **libcapi-vpnsvc.so.1.1.0**. Podem ser a mesma biblioteca (soname/versão via symlink), não concluir que existem dois serviços separados.
+- NoNewPrivs não visível na leitura de /proc/self/status.
+
+**Interpretação:** Uma app Tizen .NET assinada com certificado Partner continua confinada ao sandbox da Samsung, sem a capacidade Linux necessária para gerir interfaces/rotas diretamente. A presença da biblioteca CAPI VPN no firmware não implica que o daemon esteja em execução nem autorizado, especialmente porque a Web SystemInfo anunciou network.vpn=false.
+
+### v0.3 — confirmar acessibilidade ao carregador de bibliotecas (NÃO iniciar VPN)
+
+Criei v0.3 que tenta `NativeLibrary.TryLoad("libcapi-vpnsvc.so.1", out handle)`, depois, se tiver sucesso, `TryGetExport("vpnsvc_init")` e `TryGetExport("vpnsvc_deinit")`, e por fim `Free(handle)`. **Não chama `vpnsvc_init`, não cria túnel, não abre /dev/net/tun e não altera rotas**. A operação de carregar uma .so pode executar inicializadores internos da biblioteca e pode falhar ou causar instabilidade sob as políticas Samsung; fechar a app se houver problemas. Não é uma tentativa de ultrapassar as autorizações de TV nem garante que interop seja permitida.
+
+A [Samsung TV .NET Q&A](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html) afirma que é proibido usar DllImport para bibliotecas TizenFX do sistema. `NativeLibrary.TryLoad` é um diagnóstico do carregador .NET Core 3.1, **não uma autorização para invocar a API VPN**. Se carregar, ainda faltam privilégio de daemon e função VPN permitida; se falhar, não identificar automaticamente se é por sandbox, dependências ou arquitetura.
+
+GitHub Actions v0.3: [run #39042792492](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042792492) **SUCCESS**, artifact **native-tizen60-vpn-loader-diagnostics**. Artefacto não assinado com os certificados do utilizador no GitHub. Descarregar ZIP para Downloads e assinar localmente com script `scripts/install-native-tizen60-test.ps1` (atualizado).
+
+Depois de instalar/abrir na Samsung, fotografar a linha **Carregamento vpnsvc:**. Não executar tentativas de vpnsvc_init ou root enquanto não compreendermos as permissões e o risco de interromper a conectividade.
+
+## Resultado v0.3 confirmado e v0.4 opcional (17/10/2026)
+
+A foto da TV confirmou **Carregamento vpnsvc: LOAD OK; init=SIM, deinit=SIM**. Portanto o processo .NET conseguiu carregar `libcapi-vpnsvc.so.1` e resolver os símbolos `vpnsvc_init` e `vpnsvc_deinit`. Isto não implica que tenha permissão para invocar a API, que o daemon esteja disponível nem que possa alterar as rotas.
+
+Documentação oficial do Tizen: https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/connectivity/vpn.md . A função `vpnsvc_init(name, &handle)` **pode inicializar/criar uma interface** e a função `vpnsvc_deinit(handle)` limpa o identificador criado. O guia indica privilégio Partner `http://developer.samsung.com/tizen/vpnservice` e pede consentimento de utilizador para ligar/desligar através de app-control.
+
+**v0.4**: acrescenta ao manifesto **apenas** o privilégio Partner VPN documentado, mantém os diagnósticos anteriores e apresenta um teste **opt-in com dupla confirmação de tecla OK/Enter no comando da TV**:
+
+1. Abrir a aplicação não chama `vpnsvc_init`.
+2. Primeira pressão de OK: apresentar aviso de confirmação.
+3. Segunda pressão de OK: chamar `vpnsvc_init("hugoprobe", &handle)` **uma só vez** e, se existir handle não nulo, chamar `vpnsvc_deinit(handle)` em `finally`.
+4. Apresentar código numérico de retorno (decimal + hexadecimal) ou tipo de exceção. **Não chama** `vpnsvc_update_settings`, `vpnsvc_block_networks`, `vpnsvc_write`, app-control nem modifica deliberadamente rotas/DNS/firewall.
+5. `Voltar` cancela/fecha a aplicação. Esta versão ainda não cria VPN para outras apps e não é o Tailscale final.
+
+**AVISO DE RISCO:** ao contrário dos testes v0.2/v0.3, `vpnsvc_init` pode pedir ao sistema que crie uma interface temporária; mesmo com deinit imediato, não há garantia absoluta de que não afete momentaneamente a rede ou que a chamada não bloqueie/crashe devido a sandbox/interoperabilidade. Só premir OK duas vezes se aceitar esse teste na sua própria TV e souber recuperar a ligação/reiniciar em caso de falha. Não insistir repetidamente se houver instabilidade. A Samsung [documenta restrições de interop nativa](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html).
+
+### Build e instalação
+
+[GitHub Actions #39043223184](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39043223184) terminou **SUCCESS**, ZIP artifact `native-tizen60-vpn-init-optional` (~22 KB), com código v0.4 e privilégio Partner.
+
+Descarregar esse ZIP manualmente para Downloads, sem extrair. Atualizar com [scripts/install-native-tizen60-test.ps1](https://github.com/hwiguel3/tailscale-tizen/blob/tizen6-armv7-compat/scripts/install-native-tizen60-test.ps1) já preparado para o novo nome de artifact. O script re-assina o TPK localmente com perfil `SamsungTV_Hugo_2`; não carregar certificados para GitHub. A instalação pode ser rejeitada pelo gestor de pacotes se o privilégio não for autorizado — **esse resultado é também relevante e não deve ser contornado**.
+
+Na TV, fotografar primeiro o ecrã de confirmação. Se optar por executar a chamada, fotografar o valor do retorno. Um retorno zero significa apenas que a criação de handle foi aceite naquele instante; **não** que o Tailscale ou uma VPN global esteja funcional.
+
+## Resultado do teste v0.4 na TV real — VPN não suportada pela plataforma atual (17/10/2026)
+
+Fotografia da Samsung QE43Q60AAUXXH / T-NKLADEUC-2301.1:
+
+- `vpnsvc_init("hugoprobe", &handle)` devolveu **-1073741822**, em hexadecimal **0xC0000002**.
+- O `handle` permaneceu nulo e o programa mostrou `Libertacao do handle: nao necessario`; não houve túnel VPN estabelecido.
+- O valor corresponde ao erro genérico **`TIZEN_ERROR_NOT_SUPPORTED`**: `TIZEN_ERROR_UNKNOWN = -1073741824`, `TIZEN_ERROR_NOT_SUPPORTED = TIZEN_ERROR_UNKNOWN + 2`. Referência de cabeçalho Tizen: https://github.com/nnstreamer/api/blob/d0a687d405a0e04fba8c7507f1a212244fe3d4b9/c/include/platform/tizen_error.h
+- A API documenta `VPNSVC_ERROR_NOT_SUPPORTED` como resultado possível de `vpnsvc_init()`: https://docs.stg.tizen.org/application/native/api/iot-headed/6.0/group__CAPI__NETWORK__VPN__SERVICE__MODULE.html
+- O resultado é **fortemente consistente com VPN desativada/não suportada** no firmware, em linha com `getCapability(network.vpn) = false` e com ausência de `/dev/net/tun` e `CAP_NET_ADMIN` para esta app.
+
+### Limites e implicações
+
+Não confundir `TIZEN_ERROR_NOT_SUPPORTED` com `PERMISSION_DENIED`. O erro não prova que o certificado Partner tenha sido rejeitado. A app Partner Web SSO funcionou e o pacote TPK de teste foi aceite. A presença de `libcapi-vpnsvc.so.1` prova carregamento da biblioteca mas não que o backend VPN exista ou seja ativável neste modelo.
+
+A assinatura C observada no código (`const char*`, `vpnsvc_h*`) corresponde à documentação. No entanto, o manifesto v0.4 declarou apenas `http://developer.samsung.com/tizen/vpnservice`, como indicado no guia; a referência genérica da API menciona ainda `http://tizen.org/privilege/vpnservice` e `http://tizen.org/privilege/internet`. Esses privilégios **podem ser adicionais**, mas a saída observada é `NOT_SUPPORTED`, não `PERMISSION_DENIED`. Não insistir em testes que tentem iniciar VPN sem evidência nova.
+
+### Decisão de engenharia
+
+**Não investir agora na interface gráfica nem na integração Tailscale como VPN global da TV.** O obstáculo documentado não é instalação de `.tpk`, assinatura Partner ou carregamento de biblioteca, mas suporte real da plataforma para tun/daemon/roteamento global. Para manter o objetivo estrito do utilizador (sem gateway externo), estudar apenas caminhos de privilégio de sistema/firmware adequados ao **modelo+firmware exatos**, com método de recuperação, sem flashear às cegas. Não afirmar que root foi alcançado ou que exista uma exploração fiável para esta versão.
+
+Nota de interface: o ecrã v0.4 dizia `leitura apenas`, mas pressionar OK duas vezes executava uma inicialização. É texto incorreto que deve ser substituído por aviso claro antes de qualquer reutilização.

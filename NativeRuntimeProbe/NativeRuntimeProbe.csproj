@@ -1,0 +1,8 @@
+<Project Sdk="Tizen.NET.Sdk/1.0.8">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>tizen60</TargetFramework>
+    <AssemblyName>HugoNativeProbe</AssemblyName>
+    <RootNamespace>HugoNativeProbe</RootNamespace>
+  </PropertyGroup>
+</Project>

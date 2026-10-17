@@ -1,0 +1,37 @@
+name: Tizen 6 native app compile experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tizen6-armv7-compat
+    paths:
+      - 'NativeRuntimeProbe/**'
+      - '.github/workflows/build-tizen6-native-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-native-tizen60:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/dotnet/sdk:3.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print legacy build environment
+        run: dotnet --info
+      - name: Compile Tizen 6 legacy .NET application (experimental)
+        run: dotnet build NativeRuntimeProbe/NativeRuntimeProbe.csproj --configuration Release --verbosity minimal
+      - name: Inspect output
+        shell: bash
+        run: |
+          find NativeRuntimeProbe/bin -type f -name '*.tpk' -print
+          test "$(find NativeRuntimeProbe/bin -type f -name '*.tpk' | wc -l)" -gt 0
+      - name: Upload TEST-only unsigned/SDK-signed package
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-tizen60-sdk-process-check
+          path: NativeRuntimeProbe/bin/**/*.tpk
+          retention-days: 7

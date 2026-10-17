@@ -1,0 +1,44 @@
+name: Tizen 6 - ARMv7 engine build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tizen6-armv7-compat
+    paths:
+      - go.mod
+      - go.sum
+      - tools.go
+      - .github/workflows/build-tizen6-armv7.yml
+
+permissions:
+  contents: read
+
+jobs:
+  tailscaled-armv7:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Cross-compile Tailscale userspace engine for Samsung ARMv7
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
+            go build -trimpath -ldflags='-s -w' \
+            -o dist/tailscaled-armv7 tailscale.com/cmd/tailscaled
+          file dist/tailscaled-armv7
+          readelf -h dist/tailscaled-armv7 | grep -E 'Class:|Machine:'
+          test "$(readelf -h dist/tailscaled-armv7 | grep -c 'Machine:.*ARM')" -eq 1
+          sha256sum dist/tailscaled-armv7 > dist/SHA256SUMS
+      - name: Upload experimental executable (NOT an installable TV app)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailscaled-tizen6-armv7-experimental
+          path: dist/
+          retention-days: 14
