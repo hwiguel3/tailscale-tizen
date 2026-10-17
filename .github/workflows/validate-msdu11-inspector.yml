@@ -1,0 +1,34 @@
+name: Validate offline Samsung MSDU11 inspector
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tizen6-armv7-compat
+    paths:
+      - scripts/check-msdu11-header-key-windows.ps1
+      - .github/workflows/validate-msdu11-inspector.yml
+
+permissions:
+  contents: read
+
+jobs:
+  parse-powershell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell script without executing it
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path scripts/check-msdu11-header-key-windows.ps1),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "PowerShell syntax valid. Nothing executed on TV or local firmware."
