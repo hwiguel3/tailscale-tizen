@@ -12,7 +12,7 @@
 ## Diferença para o repositório original
 
 - O código original usa `net6.0-tizen8.0` (Tizen 8, .NET 6) e `api-version="8.0"`.
-- O Tizen 6 usa a geração **.NET Core 3.1**, com **TizenFX API 8** (`tizen80` no SDK antigo). Para funcionar nesta TV, a aplicação C# tem de ser portada e recompilada.
+- O Tizen 6 usa a geração **.NET Core 3.1**. O framework antigo do SDK para o Tizen 6 é **`tizen60`** (não confundir com `net6.0-tizen8.0` nem com o Tizen API level 8). Para funcionar nesta TV, a aplicação C# tem de ser portada e recompilada. Referência: https://developer.samsung.com/tizen/blog/en/2019/06/13/using-tizennetsdk-as-sdk-style
 - O `LocalApi.cs` original recorre a `SocketsHttpHandler.ConnectCallback`, disponível apenas a partir de .NET 5. A API JSON `System.Text.Json.Nodes` e `Task.WaitAsync` também são posteriores a 3.1. **Mudar só o TargetFramework não chega**.
 - O `tailscaled` em Go pode ser compilado para `GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0`. É isso que o workflow deste ramo testa.
 
@@ -30,7 +30,7 @@ Portanto, só vale a pena investir num port C# completo depois de validar **a ex
 
 ## Assinatura Samsung
 
-Mesmo que o projeto venha a gerar um `.tpk`, a Samsung TV necessita de um **certificado de distribuidor Samsung associado ao DUID**. Não colocar ficheiros `.p12`, passwords, ficheiros de perfil ou chaves no repositório (nem em issues/PRs). Em GitHub Actions, só usar segredos se for estritamente necessário e após configurar um procedimento de segurança. Alternativa: assinatura local com certificado existente no Tizen Studio.
+Mesmo que o projeto venha a gerar um `.tpk`, a Samsung TV necessita de um **certificado de distribuidor Samsung associado ao DUID**. O utilizador já confirmou que tem um certificado criado no Tizen Studio; confirmar que é um **perfil Samsung** autorizado para esta televisão (não apenas certificado Tizen genérico). Não colocar ficheiros `.p12`, passwords, ficheiros de perfil ou chaves no repositório (nem em issues/PRs). Em GitHub Actions, só usar segredos se for estritamente necessário e após configurar um procedimento de segurança. Alternativa: assinatura local com certificado existente no Tizen Studio.
 
 ## Referências
 
@@ -38,3 +38,13 @@ Mesmo que o projeto venha a gerar um `.tpk`, a Samsung TV necessita de um **cert
 - Tizen 6 runtime: https://docs.stg.tizen.org/platform/release-notes/tizen-6-0-m1/
 - SDK Tizen antigo: https://developer.samsung.com/tizen/blog/en/2019/06/13/using-tizennetsdk-as-sdk-style
 - Limitações de rede: README.md do projeto original
+
+## Assinatura local quando existir um .TPK de Tizen 6
+
+Existe um helper PowerShell em `scripts/sign-install-windows.ps1`, por agora **não testado no PC do utilizador**, que permite assinar um `.tpk` já compilado com o certificado **local** e, se pedido, instalar via SDB. Não funciona para o artifact `tailscaled` isolado. Exemplo:
+
+```powershell
+.\scripts\sign-install-windows.ps1 -Package ".\Tailscale-unsigned.tpk" -Profile "NOME-DO-PERFIL" -Install
+```
+
+O certificado permanece no Windows e **não deve** ser enviado nem publicado no GitHub. O helper usa `tz.exe` (Tizen Core) e fallback `tizen.bat` (CLI clássica); necessita da instalação local do Tizen Studio já disponível.
