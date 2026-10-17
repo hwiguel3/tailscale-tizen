@@ -14,6 +14,7 @@
 param(
   [string]$Profile = 'SamsungTV_Hugo_2',
   [string]$TizenStudio = 'C:\tizen-studio',
+  [string]$ProfilesXml = '',
   [switch]$Install
 )
 $ErrorActionPreference='Stop'
@@ -21,6 +22,70 @@ $cli=Join-Path $TizenStudio 'tools\ide\bin\tizen.bat'
 $sdb=Join-Path $TizenStudio 'tools\sdb.exe'
 if (!(Test-Path -LiteralPath $cli)) { throw "Nao encontrei a CLI Tizen: $cli" }
 if ($Install -and !(Test-Path -LiteralPath $sdb)) { throw "Nao encontrei SDB: $sdb" }
+# Confirmar que a CLI e o Certificate Manager veem o mesmo perfil.
+# Sem isto, o comando "tizen package" pode terminar com codigo 0
+# mas gerar um .wgt SEM author-signature.xml e signature1.xml.
+function Has-CertificateProfile {
+  param([string]$Path, [string]$Name)
+  if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){return $false}
+  try{
+    [xml]$doc = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    foreach($node in @($doc.SelectNodes("//*[local-name()='profileitem' or local-name()='profile']"))){
+      if($node.GetAttribute('name') -eq $Name){return $true}
+    }
+  } catch { return $false }
+  return $false
+}
+
+Write-Host "A validar a configuracao de assinatura Samsung para '$Profile'..."
+$existingList = @(& $cli security-profiles list 2>&1)
+$cliSeesProfile = ($existingList -match [regex]::Escape($Profile)).Count -gt 0
+$candidates = @()
+if($ProfilesXml){$candidates += $ProfilesXml}
+$candidates += @(
+  'C:\tizen-studio-data\profile\profiles.xml',
+  (Join-Path $env:USERPROFILE 'tizen-studio-data\profile\profiles.xml'),
+  (Join-Path $env:USERPROFILE 'SamsungCertificate\profiles.xml'),
+  (Join-Path $env:USERPROFILE 'workspace\.metadata\.plugins\org.tizen.common.sign\profiles.xml'),
+  (Join-Path $env:USERPROFILE '.metadata\.plugins\org.tizen.common.sign\profiles.xml')
+)
+# O certificado pode ter sido criado no VS Code, noutro workspace:
+$parentDirs = @(
+  (Join-Path $env:USERPROFILE 'Documents'),
+  (Join-Path $env:USERPROFILE 'source'),
+  (Join-Path $env:USERPROFILE 'SamsungCertificate')
+)
+foreach($parent in $parentDirs){
+  if(Test-Path -LiteralPath $parent -PathType Container){
+    $candidates += Join-Path $parent 'profiles.xml'
+    $candidates += Join-Path $parent '.metadata\.plugins\org.tizen.common.sign\profiles.xml'
+  }
+}
+$located = @($candidates | Select-Object -Unique | Where-Object { Has-CertificateProfile -Path $_ -Name $Profile })
+if($ProfilesXml -and $located.Count -eq 0){
+  throw "O ficheiro -ProfilesXml indicado nao existe ou nao contem o perfil '$Profile'. Nao se fez nenhuma alteracao."
+}
+if($ProfilesXml -or (-not $cliSeesProfile -and $located.Count -eq 1)){
+  $selected = $located[0]
+  Write-Host "Encontrei o perfil num profiles.xml local. A associar a CLI a esse ficheiro (alteracao persistente na configuracao da CLI, nao nos certificados)."
+  & $cli cli-config "default.profiles.path=$selected"
+  if($LASTEXITCODE -ne 0){throw 'Falha ao definir default.profiles.path na CLI.'}
+  $existingList = @(& $cli security-profiles list 2>&1)
+  $cliSeesProfile = ($existingList -match [regex]::Escape($Profile)).Count -gt 0
+}
+if(-not $cliSeesProfile){
+  Write-Host "O perfil '$Profile' existe no Certificate Manager mas NAO esta acessivel a esta CLI Tizen."
+  if($located.Count -gt 1){
+    Write-Host "Foram encontrados varios profiles.xml com esse perfil; para escolher, passa -ProfilesXml 'caminho\profiles.xml'."
+  }elseif($located.Count -eq 0){
+    Write-Host "Nao encontrei profiles.xml com esse perfil nos locais habituais."
+    Write-Host "Verifica Certificate Manager > perfil SamsungTV_Hugo_2 e o local de profiles.xml. Nao envies XML, .p12 nem passwords."
+  }
+  Write-Host "Diagnostico adicional SEGURO: & 'C:\tizen-studio\tools\ide\bin\tizen.bat' cli-config -l | Select-String 'profiles.path'"
+  throw "Assinatura indisponivel: nao vou gerar outra vez um WGT sem certificado Partner."
+}
+Write-Host "Perfil '$Profile' confirmado na CLI. Continuar build."
+
 $dir=Join-Path ([IO.Path]::GetTempPath()) ('HugoPartnerProbe_'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
 $archive=Join-Path $dir 'code.zip'
