@@ -2,14 +2,17 @@
 <manifest xmlns="http://tizen.org/ns/packages"
     api-version="6.0"
     package="com.hugo.nativeprobe"
-    version="0.3.0">
+    version="0.4.0">
   <profile name="tv"/>
+  <privileges>
+    <privilege>http://developer.samsung.com/tizen/vpnservice</privilege>
+  </privileges>
   <ui-application appid="com.hugo.nativeprobe"
        exec="HugoNativeProbe.dll"
        type="dotnet"
        multiple="false"
        taskmanage="true"
        nodisplay="false">
-    <label>Hugo Native VPN Loader Probe</label>
+    <label>Hugo VPN Service Probe</label>
   </ui-application>
 </manifest>
