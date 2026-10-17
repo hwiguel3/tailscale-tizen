@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
 using Tizen.NUI;
@@ -74,6 +75,39 @@ namespace HugoNativeProbe
             return scanned ? "nenhuma encontrada nestas pastas" : "bibliotecas inacessiveis";
         }
 
+        private static string VpnLoaderProbe()
+        {
+            // Somente resolve carregamento e simbolos: NAO invoca vpnsvc_init
+            // ou qualquer outra funcao VPN. Uma tentativa de carregamento
+            // pode ser negada pelo sandbox da Samsung TV.
+            IntPtr handle = IntPtr.Zero;
+            try
+            {
+                if (!NativeLibrary.TryLoad("libcapi-vpnsvc.so.1", out handle) ||
+                    handle == IntPtr.Zero)
+                    return "LOAD NEGADO/FALHOU (motivo nao determinado)";
+
+                IntPtr init = IntPtr.Zero;
+                IntPtr deinit = IntPtr.Zero;
+                bool hasInit = NativeLibrary.TryGetExport(handle, "vpnsvc_init", out init);
+                bool hasDeinit = NativeLibrary.TryGetExport(handle, "vpnsvc_deinit", out deinit);
+                return "LOAD OK; init=" + (hasInit ? "SIM" : "NAO") +
+                       ", deinit=" + (hasDeinit ? "SIM" : "NAO");
+            }
+            catch (Exception e)
+            {
+                return "ERRO (" + e.GetType().Name + ")";
+            }
+            finally
+            {
+                if (handle != IntPtr.Zero)
+                {
+                    try { NativeLibrary.Free(handle); }
+                    catch { }
+                }
+            }
+        }
+
         private static string CapNetAdmin(string status)
         {
             var hex = StatusValue(status, "CapEff:");
@@ -92,7 +126,7 @@ namespace HugoNativeProbe
             if (kernel.Length > 65) kernel = kernel.Substring(0, 65);
 
             var sb = new StringBuilder();
-            sb.AppendLine("HUGO - NATIVE NETWORK PROBE v0.2");
+            sb.AppendLine("HUGO - NATIVE VPN LOADER PROBE v0.3");
             sb.AppendLine("Samsung Q60A / Tizen 6.0 - leitura apenas");
             sb.AppendLine("");
             sb.AppendLine(".NET / TPK: EXECUCAO CONFIRMADA");
@@ -104,8 +138,10 @@ namespace HugoNativeProbe
             sb.AppendLine("/dev/net/tun: " + (tunVisible ? "VISIVEL" : "NAO VISIVEL"));
             sb.AppendLine("Interfaces de rede: " + KernelInterfaces());
             sb.AppendLine("Bibliotecas *vpn*: " + VpnLibraries());
+            sb.AppendLine("Carregamento vpnsvc: " + VpnLoaderProbe());
+            sb.AppendLine("Nao invoca vpnsvc_init nem altera rotas.");
             sb.AppendLine("");
-            sb.AppendLine("Nao cria VPN, nao altera rotas nem firmware.");
+            sb.AppendLine("Nao cria VPN nem altera rotas/firmware.");
             sb.AppendLine("Bibliotecas/ficheiros invisiveis nao provam ausencia.");
             return sb.ToString();
         }
@@ -120,7 +156,7 @@ namespace HugoNativeProbe
             var label = new TextLabel(message)
             {
                 TextColor = new Color(1.0f, 1.0f, 1.0f, 1.0f),
-                PointSize = 22.0f,
+                PointSize = 20.0f,
                 MultiLine = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
