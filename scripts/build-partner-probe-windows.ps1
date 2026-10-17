@@ -42,12 +42,38 @@ Write-Host "A assinar Web app com perfil Samsung Partner local: $Profile"
 if($LASTEXITCODE -ne 0){throw "Assinatura/pacote falhou (codigo $LASTEXITCODE)."}
 $wgts=@(Get-ChildItem -LiteralPath $build -Filter '*.wgt' -File)
 if($wgts.Count -ne 1){throw "Esperava 1 pacote .wgt em $build. Encontrados: $($wgts.Count)."}
-Write-Host "Pacote assinado: $($wgts[0].FullName)"
+Write-Host "Pacote criado: $($wgts[0].FullName)"
+# Os avisos "Not found tizen signature file" referem-se frequentemente ao
+# projeto de entrada ainda por assinar. Verificar assinaturas DENTRO do .wgt.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead($wgts[0].FullName)
+try {
+  $names = @($zip.Entries | ForEach-Object { $_.FullName })
+  foreach($required in @('config.xml','author-signature.xml','signature1.xml')) {
+    if($names -notcontains $required){
+      throw "O WGT nao contem $required. A assinatura esta incompleta; NAO instalar."
+    }
+  }
+  Write-Host 'Pacote validado: config.xml, author-signature.xml e signature1.xml presentes.'
+} finally {
+  $zip.Dispose()
+}
 if($Install){
-  Write-Host 'A instalar na TV ligada via SDB...'
-  & $sdb install $wgts[0].FullName
-  if($LASTEXITCODE -ne 0){throw "Instalacao falhou (codigo $LASTEXITCODE); envia a mensagem de erro, sem passwords ou chaves."}
-  Write-Host 'Se a instalacao foi aceite, abre Hugo Partner Probe na TV e fotografa o resultado.'
+  Write-Host 'A instalar com a CLI oficial do Tizen (em vez de sdb install)...'
+  $connected = @(& $sdb devices | Where-Object { $_ -match '^\S+\s+device(?:\s|$)' })
+  if($connected.Count -ne 1) {
+    throw "Esperava exatamente uma TV ligada no SDB. Encontrei $($connected.Count)."
+  }
+  $serial = ([regex]::Match($connected[0], '^\S+')).Value
+  Write-Host '1 TV ligada. A executar tizen install -s SERIAL -n WGT -- DIRETORIO.'
+  # A sintaxe documentada Samsung para WGT e: tizen install -s SERIAL
+  # -n nome.wgt -- pasta. Nao passar o caminho completo como -n.
+  & $cli install -s $serial -n $wgts[0].Name -- $build
+  $installCode = $LASTEXITCODE
+  if($installCode -ne 0){
+    throw "Instalacao Tizen falhou (codigo $installCode). Envia o texto do erro acima, ocultando dados pessoais."
+  }
+  Write-Host 'Comando de instalacao terminou com sucesso. Confirma se a app aparece na TV.'
 }else{
   Write-Host 'Sem alteracoes na TV. Para instalar, executa o script com -Install.'
 }
