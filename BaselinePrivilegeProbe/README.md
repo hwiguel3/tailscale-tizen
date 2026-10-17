@@ -52,3 +52,13 @@ Invoke-WebRequest -Uri $url -OutFile $script
 ```
 
 Se não forem encontrados os .p12 do perfil Public, interromper e localizar a pasta por Certificate Manager. Não publicar passwords, p12, XML nem DUID.
+
+## Prova de instalação — 17/10/2026
+
+Após múltiplas falhas com a CLI (caminhos longos e espaços), a **mesma aplicação Baseline já assinada** foi copiada para um nome e caminho curtos, sem alterar os bytes do pacote (SHA256 idêntico). A instalação foi concluída com `Tizen application is successfully installed` e a app foi aberta na Q60A Tizen 6.0 (fotos recebidas). **Não se pode atribuir causalidade definitiva aos espaços sem mais testes**, mas este procedimento funcionou.
+
+A frase no ecrã `Assinada com certificado Partner` é **texto estático** e não atesta o certificado real. A instalação de controlo pode ter usado a última assinatura Public. Confirmar classe do certificado de distribuição por inspeção do `.wgt` fora da TV, se relevante.
+
+**Próxima etapa prioritária:** instalar o pacote *PartnerPrivilegeProbe* já assinado anteriormente (com `sso.partner` no `config.xml`) pelo **mesmo método de nome e caminho sem espaços**. Script: `scripts/install-partner-probe-shortpath.ps1`. O script seleciona pacote assinado, confirma o ID e o privilégio no manifesto, compara SHA256 da cópia e instala pela CLI sem recompilar, sem passwords e sem modificar o firmware. Se instalar, executar e fotografar as mensagens de `Partner SSO` no ecrã. A instalação ou execução de `webapis.sso` não demonstram a disponibilidade da API VPN nativa.
+
+Referência: https://github.com/hwiguel3/tailscale-tizen/blob/tizen6-armv7-compat/scripts/install-partner-probe-shortpath.ps1
