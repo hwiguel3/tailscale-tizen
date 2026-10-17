@@ -47,29 +47,34 @@ function Profile-InCli {
 Write-Host "A validar a configuracao de assinatura Samsung para '$Profile'..."
 $cliSeesProfile=Profile-InCli -Name $Profile
 if(-not $cliSeesProfile){
-  # Primeiro aproveitar XML existente, se conhecido. Nao ler chaves nem senhas.
+  # Um profiles.xml encontrado noutro workspace nao e necessariamente
+  # o ficheiro de perfis da CLI classica. O PowerShell pode ainda retirar
+  # as aspas esperadas por 'tizen cli-config' quando o caminho tem espacos.
+  # EVITAR mudar default.profiles.path automaticamente: registar os mesmos
+  # .p12 na CLI atual e a opcao mais previsivel para o teste A/B.
   $paths=@()
-  if($ProfilesXml){$paths+= $ProfilesXml}
+  if($ProfilesXml){$paths+=$ProfilesXml}
   $paths+=@(
     (Join-Path $env:USERPROFILE 'tizen-studio-data\profile\profiles.xml'),
     (Join-Path $env:USERPROFILE 'workspace\.metadata\.plugins\org.tizen.common.sign\profiles.xml'),
     'C:\tizen-studio-data\profile\profiles.xml',
     (Join-Path $env:USERPROFILE 'SamsungCertificate\profiles.xml')
   )
-  $matches=@($paths | Select-Object -Unique | Where-Object {Has-CertificateProfile -Path $_ -Name $Profile})
+  $matches=@($paths | Select-Object -Unique | Where-Object {
+    Has-CertificateProfile -Path $_ -Name $Profile
+  })
   if($ProfilesXml -and -not (Has-CertificateProfile -Path $ProfilesXml -Name $Profile)){
     throw "O -ProfilesXml indicado nao contem o perfil '$Profile'."
   }
-  if($matches.Count -eq 1){
-    Write-Host 'A configurar a CLI para o profiles.xml existente (certificados inalterados).'
-    & $cli cli-config "default.profiles.path=$($matches[0])"
-    if($LASTEXITCODE -ne 0){throw "Falha ao configurar default.profiles.path."}
-    $cliSeesProfile=Profile-InCli -Name $Profile
+  if($matches.Count -gt 0){
+    Write-Host "Perfil '$Profile' encontrado num XML local, mas nao na CLI atual."
+    Write-Host 'Nao vou alterar default.profiles.path automaticamente.'
   }
+  Write-Host 'Vou reutilizar os certificados .p12 existentes e registar este perfil diretamente na CLI.'
 }
 if(-not $cliSeesProfile){
-  # No caso concreto SamsungTV_Hugo_2, o Certificate Manager mostrou
-  # os ficheiros em $env:USERPROFILE\SamsungCertificate\SamsungTV_Hugo_2.
+  # O Certificate Manager mostrou os certificados em
+  # $env:USERPROFILE\SamsungCertificate\<nome do perfil>.
   $certDirs=@(
     (Join-Path (Join-Path $env:USERPROFILE 'SamsungCertificate') $Profile),
     (Join-Path (Join-Path $env:USERPROFILE 'tizen-studio-data\keystore\samsung') $Profile),
