@@ -2,7 +2,7 @@
 <manifest xmlns="http://tizen.org/ns/packages"
     api-version="6.0"
     package="com.hugo.nativeprobe"
-    version="0.2.0">
+    version="0.3.0">
   <profile name="tv"/>
   <ui-application appid="com.hugo.nativeprobe"
        exec="HugoNativeProbe.dll"
@@ -10,6 +10,6 @@
        multiple="false"
        taskmanage="true"
        nodisplay="false">
-    <label>Hugo Native Network Probe</label>
+    <label>Hugo Native VPN Loader Probe</label>
   </ui-application>
 </manifest>
