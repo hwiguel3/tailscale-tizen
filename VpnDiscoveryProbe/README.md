@@ -21,3 +21,31 @@ O script `scripts/build-partner-probe-windows.ps1` suporta `-Variant VpnDiscover
 - **Erro na própria API:** não se consegue retirar conclusão sobre o VPN.
 
 O obstáculo central permanece: a documentação oficial da Samsung Smart TV declara que as TVs de consumo suportam pacotes Web `.wgt`, não `.tpk`; a API VPN C nativa não é exposta ao JavaScript e o certificado Partner não confere automaticamente acesso a root ou encaminhamento global.
+
+## Resultado da Q60A e evolução para a versão 1.0.1 (2026-10-17)
+
+A `Hugo VPN Discovery` versão 1.0.0 instalou-se e abriu na Q60A. Resultado por imagem:
+- `Tizen Application API: disponível.`
+- `VPN app-control: NotFoundError: Matched Application not found.`
+- `Definições (controlo): NotFoundError: Matched Application not found.`
+
+**Interpretação:** não existe um *handler de app control* correspondente visível a esta aplicação para nenhuma das duas operações. O controlo de definições gerais também foi negativo, portanto não validar a ausência de serviço VPN com base nestes erros.
+
+**Versão 1.0.1:** acrescenta um teste mais direto à capacidade anunciada pelo sistema:
+- `tizen.systeminfo.getCapability("http://tizen.org/feature/network.vpn")` — capacidade VPN.
+- `network.internet` e `network.wifi` — controlos positivos para confirmar que o mecanismo de leitura de capacidades funciona.
+- Privilégio `http://tizen.org/privilege/system` declarado na aplicação.
+- Mantém os testes AppControl anteriores para comparação.
+- Não altera rede, não faz root, não testa `vpnsvc_init()`, não atribui privilégios nativos.
+
+[Documentação nativa oficial Tizen — feature VPN](https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/device/system.md)
+e [Samsung — SystemInfo Web API](https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/systeminfo-api.html).
+A chave `network.vpn` aparece na documentação **genérica/nativa** do Tizen; não está explicitamente enumerada na lista Samsung TV Web de capacidades. É possível que a TV responda `false`, `undefined` ou uma exceção por esse motivo. Distinguir esses casos; não supor que `false` significa impossibilidade de root ou do suporte a VPN modificado.
+
+### Teste da versão 1.0.1
+
+Descarregar a versão mais recente de `scripts/build-partner-probe-windows.ps1` e executar `-Variant VpnDiscovery -Install`. O script empacota com assinatura local Partner e transfere por caminho/ficheiro sem espaços para atualizar a aplicação existente.
+
+### Atenção ao formato de app nativa
+
+A [FAQ Samsung Smart TV — Application Testing](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) afirma que TV comercial aceita apenas `.wgt`, não `.tpk`. Contudo, [Samsung também mantém documentação de criação e implantação de aplicações .NET TV `.tpk`](https://developer.samsung.com/smarttv/develop/tizen-net-tv/getting-started/creating-net-tv-applications.html), e a página [TV Seller Office](https://developer.samsung.com/tv-seller-office/guides/applications/registering-application.html) menciona `.tpk`. Não é correto tratar a impossibilidade de executar código nativo como definitivamente comprovada para esta TV. Precisamos de distinguir políticas de **instalação local**, **distribuição por Seller Office** e **geração/modelo**. Um teste nativo mínimo poderá ser necessário depois de confirmar a capacidade VPN.
