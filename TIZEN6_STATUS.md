@@ -48,3 +48,21 @@ Existe um helper PowerShell em `scripts/sign-install-windows.ps1`, por agora **n
 ```
 
 O certificado permanece no Windows e **não deve** ser enviado nem publicado no GitHub. O helper usa `tz.exe` (Tizen Core) e fallback `tizen.bat` (CLI clássica); necessita da instalação local do Tizen Studio já disponível.
+
+## Decisão técnica após confirmar certificado Samsung Public (2026-10-17)
+
+O certificado usado para instalar apps é do tipo **Samsung Public**. Não contém direitos Partner.
+
+A documentação oficial do Tizen é **ambígua** quanto à implementação da VPN:
+- Lista geral de privilégios nativos: `http://tizen.org/privilege/vpnservice` é rotulado `public`: https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/reference/security-privileges.md .
+- Guia `VPN Connections` distingue o acesso ao **VPN service daemon**: afirma explicitamente que precisa do privilégio **Partner** e mostra a declaração `http://developer.samsung.com/tizen/vpnservice`: https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/connectivity/vpn.md .
+- O mesmo guia descreve como consultar um handle da VPN e exige consentimento do utilizador para conectar/desconectar. Não prova que o serviço exista no perfil **TV** e na versão **6.0**.
+- Na documentação Samsung Smart TV, há materiais de gerações diferentes e restrições diferentes para distribuição de `.tpk`; não assumir suporte deste pacote na TV real até testar: https://developer.samsung.com/smarttv/develop/faq/application-testing.html e https://developer.samsung.com/smarttv/develop/specifications/general-specifications.html .
+
+**Conclusão:** NÃO afirmar que certificado Public por si só prova impossível qualquer API VPN; mas a via documentada para controlar o daemon não está autorizada com este certificado, e nada demonstra túnel de sistema para apps da TV. **Suspender trabalho de port integral e UI** até prova mínima e não destrutiva de disponibilidade/permissão da VPN no televisor. Um binário Go ARMv7 compilado com sucesso NÃO prova instalação ou VPN global.
+
+### Caminho recomendado para o objetivo (sem novos certificados)
+
+Para que as aplicações **nativas Samsung** usem um exit node Tailscale de outro equipamento, uma solução prática é configurar **um gateway/router externo como cliente Tailscale com o exit node selecionado** e ligar a Samsung à rede desse gateway. Referência de implementação em routers GL.iNet: https://docs.gl-inet.com/router/en/4/interface_guide/tailscale/ .
+
+Este gateway tem de ser capaz de servir tráfego de outros equipamentos (encaminhamento + NAT/DNS). **Ter a Tailscale instalada num Chromecast por si só não significa que a TV ligada ao mesmo Wi-Fi tenha o seu tráfego encaminhado.**
