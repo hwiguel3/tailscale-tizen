@@ -16,7 +16,7 @@ param(
   [string]$Profile = 'SamsungTV_Hugo_2',
   [string]$TizenStudio = 'C:\tizen-studio',
   [string]$ProfilesXml = '',
-  [ValidateSet('Partner','Baseline')][string]$Variant = 'Partner',
+  [ValidateSet('Partner','Baseline','VpnDiscovery')][string]$Variant = 'Partner',
   [switch]$Install
 )
 $ErrorActionPreference='Stop'
@@ -131,7 +131,11 @@ Invoke-WebRequest -UseBasicParsing -Uri $repoUrl -OutFile $archive
 Expand-Archive -LiteralPath $archive -DestinationPath $dir
 $folder=@(Get-ChildItem -LiteralPath $dir -Directory | Where-Object { $_.Name -like 'tailscale-tizen-*' })
 if ($folder.Count -ne 1) { throw 'Nao foi possivel localizar a pasta do repositorio extraido.' }
-$probeDir = if ($Variant -eq 'Baseline') { 'BaselinePrivilegeProbe' } else { 'PartnerPrivilegeProbe' }
+$probeDir = switch ($Variant) {
+  'Baseline' { 'BaselinePrivilegeProbe' }
+  'VpnDiscovery' { 'VpnDiscoveryProbe' }
+  default { 'PartnerPrivilegeProbe' }
+}
 Write-Host "Versao de teste: $Variant (projeto $probeDir)"
 $proj=Join-Path $folder[0].FullName $probeDir
 if (!(Test-Path (Join-Path $proj 'config.xml'))) {throw "Projeto $probeDir/config.xml nao encontrado."}
@@ -168,10 +172,26 @@ if($Install){
     throw "Esperava exatamente uma TV ligada no SDB. Encontrei $($connected.Count)."
   }
   $serial = ([regex]::Match($connected[0], '^\S+')).Value
-  Write-Host '1 TV ligada. A executar tizen install -s SERIAL -n WGT -- DIRETORIO.'
-  # A sintaxe documentada Samsung para WGT e: tizen install -s SERIAL
-  # -n nome.wgt -- pasta. Nao passar o caminho completo como -n.
-  & $cli install -s $serial -n $wgts[0].Name -- $build
+  # Caminhos e nomes com espacos falharam neste equipamento. A mesma app
+  # baseline passou a instalar apos copia IDENTICA para nome/caminho curtos.
+  # Por isso todas as variantes passam a usar esse procedimento.
+  $stageDir=Join-Path $env:PUBLIC 'TizenProbeStage'
+  if($stageDir -match '\\s'){throw "O caminho de staging contem espacos: $stageDir"}
+  New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+  $stageName = switch($Variant) {
+    'Baseline' {'HugoBaselineProbe.wgt'}
+    'VpnDiscovery' {'HugoVpnDiscovery.wgt'}
+    default {'HugoPartnerProbe.wgt'}
+  }
+  $stagedWgt=Join-Path $stageDir $stageName
+  Copy-Item -LiteralPath $wgts[0].FullName -Destination $stagedWgt -Force
+  if((Get-FileHash -LiteralPath $wgts[0].FullName -Algorithm SHA256).Hash -ne
+     (Get-FileHash -LiteralPath $stagedWgt -Algorithm SHA256).Hash){
+    throw 'A copia do WGT para o caminho curto nao e identica ao original.'
+  }
+  Write-Host "Pacote assinado verificado e copiado sem alteracoes: $stagedWgt"
+  Write-Host '1 TV ligada. A instalar por caminho sem espacos...'
+  & $cli install -s $serial -n $stageName -- $stageDir
   $installCode = $LASTEXITCODE
   if($installCode -ne 0){
     throw "Instalacao Tizen falhou (codigo $installCode). Envia o texto do erro acima, ocultando dados pessoais."
