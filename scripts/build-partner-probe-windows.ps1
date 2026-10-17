@@ -176,7 +176,7 @@ if($Install){
   # baseline passou a instalar apos copia IDENTICA para nome/caminho curtos.
   # Por isso todas as variantes passam a usar esse procedimento.
   $stageDir=Join-Path $env:PUBLIC 'TizenProbeStage'
-  if($stageDir -match '\\s'){throw "O caminho de staging contem espacos: $stageDir"}
+  if($stageDir -match '\s'){throw "O caminho de staging contem espacos: $stageDir"}
   New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
   $stageName = switch($Variant) {
     'Baseline' {'HugoBaselineProbe.wgt'}
