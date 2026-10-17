@@ -75,7 +75,7 @@ function checkCapabilities(){
  var interpretation='Não confirma que a app consiga criar uma VPN global.';
  if(vpnVal===true) interpretation='VPN anunciada como suportada; permissões e API nativa ainda por verificar.';
  if(vpnVal===false) interpretation='VPN NÃO anunciada como suportada; poderá faltar no perfil TV/firmware.';
- capabilities.textContent='Capacidades do Tizen (consulta de leitura):\\n'+messages.join('\\n')+'\\n'+interpretation;
+ capabilities.textContent='Capacidades do Tizen (consulta de leitura):\n'+messages.join('\n')+'\n'+interpretation;
  capabilities.className=vpnVal===true?'good':'warn';
 }
 function check(){
