@@ -105,3 +105,27 @@ A [documentação Samsung de capacidades Tizen](https://github.com/Samsung/tizen
 **Firmware:** A página Samsung de suporte do Q60A lista `2301.1` como firmware publicado em 28/01/2026; não permite inferir se a vulnerabilidade SDB já foi corrigida. Não mudar/downgrade firmware sem cópia de segurança e plano de recuperação.
 
 Próxima escolha **sem desperdiçar tempo**: se o teste TPK falhar ou não oferecer privilégios do sistema, qualquer avanço para VPN de toda a TV terá de investigar efetivamente execução com privilégios OS/kernel (não apenas Partner WebAPI). Essa via permanece incerta e potencialmente arriscada; não se deve apresentar como solução pronta.
+
+## Via de investigação prioritária após NOT_SUPPORTED: Remote PC / CIFS (17/10/2026)
+
+**Resultado real da Q60A:** `vpnsvc_init("hugoprobe", &handle)` retornou `-1073741822 (0xC0000002) = TIZEN_ERROR_NOT_SUPPORTED`. Não insistir em testes de API VPN nem construir mais interfaces.
+
+### Nova evidência de root em outro modelo, ainda não transferível
+
+- [tiz0wn](https://github.com/sebastianspicker/tiz0wn): em 27/09/2026 o investigador validou um **único comando executado como UID 0** por injeção no fluxo **Remote PC / CIFS / Shared Folder** numa **Samsung Q60T (2020), firmware T-NKLDEUC-2743.0**. Trata-se de outro modelo e outra família de firmware, **não existe prova de funcionamento em Q60A T-NKLADEUC-2301.1**. O investigador também não demonstrou persistência ou shell root.
+- [Bishop Fox SDB 2026](https://bishopfox.com/blog/samsung-tizen-os-version-through-9-0): revelou injeção de comandos no fluxo SDB, demonstrada em Tizen 5.5/7/8/9, chegando ao utilizador **sdk**, não root. **Tizen 6.0 não foi testado** no artigo, e mesmo sucesso precisaria de escalada separada para manipular interfaces/rotas.
+- [Samsung oficial, PC on TV](https://www.samsung.com/pt/support/tv-audio-video/como-usar-a-funcionalidade-pc-on-tv-na-sua-smart-tv-samsung/): TVs 2021 oferecem Home → Fonte → **PC on TV** → **Remote PC** (as opções concretas dependem do modelo). Manual da Q60A menciona acesso a **pastas partilhadas do computador remoto**, mas não confirma a presença do mesmo helper CIFS vulnerável da Q60T.
+
+### Próxima ação com risco quase nulo
+
+**Inspeção exclusivamente visual de funcionalidades, sem introduzir passwords nem ligar a computadores:**
+
+1. Na Q60A, comando **Home** → **Fonte** → **PC on TV** (ou “Remote Access”).
+2. Ver se aparece **Remote PC / PC Remoto**; fotografar apenas o menu (evitar IPs, nomes de contas).
+3. Se existir, só então verificar se há referência a **pastas partilhadas** na interface. **Não introduzir credenciais reais nem testar payloads nesse momento.**
+
+Se a UI disponibilizar este percurso, o próximo trabalho é comparação **offline** do helper `CIFS` no firmware oficial **T-NKLADEUC-2301.1** da Q60A com os ficheiros/sink documentados no estudo `tiz0wn`. **Apenas depois** discutir um teste de prova no dispositivo, com confirmação explícita e plano de recuperação. Se não disponibilizar Remote PC, priorizar investigação offline da vulnerabilidade SDB sem executar exploits aleatórios.
+
+### Risco e limite técnico
+
+Não copiar exploits da Q60T ou flashear firmware de outra série. Samsung publica T-NKLADEUC 2301.1 para Q60A em 28/01/2026, mas um ficheiro USB oficial não é garantia de recuperação após modificar a partição de arranque. Mesmo root temporário não comprova suporte do kernel para TUN/roteamento; será preciso validá-lo antes de instalar Tailscale como exit node client global.
