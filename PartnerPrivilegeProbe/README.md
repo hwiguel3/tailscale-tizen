@@ -33,3 +33,23 @@ Aplicação Web (`.wgt`) que usa **apenas**:
 Depois de validar a assinatura Partner, é necessário determinar se a TV **aceita componentes nativos** ou expõe outra interface autorizada para criar VPN global. Samsung declara em [FAQ de testes de aplicações TV](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) que TVs aceitam `.wgt` e não `.tpk`, embora existam experiências de `.tpk` noutros firmwares; **não assumir** que a nossa Q60A Tizen 6 aceita pacotes nativos.
 
 Nunca colocar certificados, passwords nem dados identificadores da TV neste repositório.
+
+## Instalação automática no Windows (atualizado 2026-10-17)
+
+O helper `scripts/build-partner-probe-windows.ps1` foi alterado para:
+- inspeccionar dentro do `.wgt` final os três ficheiros essenciais `config.xml`, `author-signature.xml` e `signature1.xml`;
+- instalar via **`tizen install -s SERIAL -n NOME.wgt -- PASTA`**, sintaxe oficial para Samsung TV, em lugar de `sdb install` (que no primeiro teste apenas fez push e terminou `closed`/código 1);
+- deixar o erro de instalação detalhado visível para diagnóstico. Não modifica a configuração da TV além da tentativa de instalação.
+
+Executar no Windows PowerShell (na mesma sessão em que a execução de scripts já estiver temporariamente permitida):
+
+```powershell
+$url = "https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/tizen6-armv7-compat/scripts/build-partner-probe-windows.ps1"
+$script = "$env:TEMP\build-partner-probe-windows.ps1"
+Invoke-WebRequest $url -OutFile $script
+& $script -Install
+```
+
+A **compilação Web anterior foi bem-sucedida**, mas a instalação não foi confirmada. Warnings sobre ausência de assinaturas no material de **entrada** são frequentemente informativos, mas o pacote de **saída** deve conter as assinaturas.
+
+Códigos Samsung TV a distinguir: `205` sugere falha no certificado; `118` pode indicar pacote alterado ou inválido. Consultar: https://developer.samsung.com/smarttv/develop/faq/application-testing.html e https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/command-line-interface.html . Não assumir resolução até uma instalação efetiva.
