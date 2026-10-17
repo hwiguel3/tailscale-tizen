@@ -93,3 +93,27 @@ A [Samsung TV .NET Q&A](https://developer.samsung.com/smarttv/develop/faq/tizen-
 GitHub Actions v0.3: [run #39042792492](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042792492) **SUCCESS**, artifact **native-tizen60-vpn-loader-diagnostics**. Artefacto não assinado com os certificados do utilizador no GitHub. Descarregar ZIP para Downloads e assinar localmente com script `scripts/install-native-tizen60-test.ps1` (atualizado).
 
 Depois de instalar/abrir na Samsung, fotografar a linha **Carregamento vpnsvc:**. Não executar tentativas de vpnsvc_init ou root enquanto não compreendermos as permissões e o risco de interromper a conectividade.
+
+## Resultado v0.3 confirmado e v0.4 opcional (17/10/2026)
+
+A foto da TV confirmou **Carregamento vpnsvc: LOAD OK; init=SIM, deinit=SIM**. Portanto o processo .NET conseguiu carregar `libcapi-vpnsvc.so.1` e resolver os símbolos `vpnsvc_init` e `vpnsvc_deinit`. Isto não implica que tenha permissão para invocar a API, que o daemon esteja disponível nem que possa alterar as rotas.
+
+Documentação oficial do Tizen: https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/connectivity/vpn.md . A função `vpnsvc_init(name, &handle)` **pode inicializar/criar uma interface** e a função `vpnsvc_deinit(handle)` limpa o identificador criado. O guia indica privilégio Partner `http://developer.samsung.com/tizen/vpnservice` e pede consentimento de utilizador para ligar/desligar através de app-control.
+
+**v0.4**: acrescenta ao manifesto **apenas** o privilégio Partner VPN documentado, mantém os diagnósticos anteriores e apresenta um teste **opt-in com dupla confirmação de tecla OK/Enter no comando da TV**:
+
+1. Abrir a aplicação não chama `vpnsvc_init`.
+2. Primeira pressão de OK: apresentar aviso de confirmação.
+3. Segunda pressão de OK: chamar `vpnsvc_init("hugoprobe", &handle)` **uma só vez** e, se existir handle não nulo, chamar `vpnsvc_deinit(handle)` em `finally`.
+4. Apresentar código numérico de retorno (decimal + hexadecimal) ou tipo de exceção. **Não chama** `vpnsvc_update_settings`, `vpnsvc_block_networks`, `vpnsvc_write`, app-control nem modifica deliberadamente rotas/DNS/firewall.
+5. `Voltar` cancela/fecha a aplicação. Esta versão ainda não cria VPN para outras apps e não é o Tailscale final.
+
+**AVISO DE RISCO:** ao contrário dos testes v0.2/v0.3, `vpnsvc_init` pode pedir ao sistema que crie uma interface temporária; mesmo com deinit imediato, não há garantia absoluta de que não afete momentaneamente a rede ou que a chamada não bloqueie/crashe devido a sandbox/interoperabilidade. Só premir OK duas vezes se aceitar esse teste na sua própria TV e souber recuperar a ligação/reiniciar em caso de falha. Não insistir repetidamente se houver instabilidade. A Samsung [documenta restrições de interop nativa](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html).
+
+### Build e instalação
+
+[GitHub Actions #39043223184](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39043223184) terminou **SUCCESS**, ZIP artifact `native-tizen60-vpn-init-optional` (~22 KB), com código v0.4 e privilégio Partner.
+
+Descarregar esse ZIP manualmente para Downloads, sem extrair. Atualizar com [scripts/install-native-tizen60-test.ps1](https://github.com/hwiguel3/tailscale-tizen/blob/tizen6-armv7-compat/scripts/install-native-tizen60-test.ps1) já preparado para o novo nome de artifact. O script re-assina o TPK localmente com perfil `SamsungTV_Hugo_2`; não carregar certificados para GitHub. A instalação pode ser rejeitada pelo gestor de pacotes se o privilégio não for autorizado — **esse resultado é também relevante e não deve ser contornado**.
+
+Na TV, fotografar primeiro o ecrã de confirmação. Se optar por executar a chamada, fotografar o valor do retorno. Um retorno zero significa apenas que a criação de handle foi aceite naquele instante; **não** que o Tailscale ou uma VPN global esteja funcional.
