@@ -71,3 +71,25 @@ Compilação e artefacto **confirmados** nas [GitHub Actions #39042322994](https
 4. Abrir Hugo Native Network Probe e fotografar. O teste não identifica IP ou MAC.
 
 CAP_NET_ADMIN ausente significa que o processo não tem a capacidade Linux para gerir rotas/interfaces diretamente, mas não prova ausência de qualquer serviço privilegiado. A Samsung proíbe DllImport para bibliotecas TizenFX em apps .NET TV e exige Seller Office Partner para bibliotecas nativas empacotadas: https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html .
+
+## Resultado v0.2 na Samsung real e teste v0.3 (17/10/2026)
+
+A fotografia da app TPK no televisor confirmou:
+
+- Kernel **4.1.10**, UID(s) do processo **5001 5001 5001 5001**, CapEff=0000000000000000; portanto **CAP_NET_ADMIN ausente**.
+- **/dev/net/tun não visível** ao processo; isto não prova que o kernel não suporte TUN, apenas que este processo não vê o caminho.
+- Interfaces visíveis **wlan0, p2p0, eth0**.
+- Bibliotecas com nome vpn visíveis: **libcapi-vpnsvc.so.1** e **libcapi-vpnsvc.so.1.1.0**. Podem ser a mesma biblioteca (soname/versão via symlink), não concluir que existem dois serviços separados.
+- NoNewPrivs não visível na leitura de /proc/self/status.
+
+**Interpretação:** Uma app Tizen .NET assinada com certificado Partner continua confinada ao sandbox da Samsung, sem a capacidade Linux necessária para gerir interfaces/rotas diretamente. A presença da biblioteca CAPI VPN no firmware não implica que o daemon esteja em execução nem autorizado, especialmente porque a Web SystemInfo anunciou network.vpn=false.
+
+### v0.3 — confirmar acessibilidade ao carregador de bibliotecas (NÃO iniciar VPN)
+
+Criei v0.3 que tenta `NativeLibrary.TryLoad("libcapi-vpnsvc.so.1", out handle)`, depois, se tiver sucesso, `TryGetExport("vpnsvc_init")` e `TryGetExport("vpnsvc_deinit")`, e por fim `Free(handle)`. **Não chama `vpnsvc_init`, não cria túnel, não abre /dev/net/tun e não altera rotas**. A operação de carregar uma .so pode executar inicializadores internos da biblioteca e pode falhar ou causar instabilidade sob as políticas Samsung; fechar a app se houver problemas. Não é uma tentativa de ultrapassar as autorizações de TV nem garante que interop seja permitida.
+
+A [Samsung TV .NET Q&A](https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html) afirma que é proibido usar DllImport para bibliotecas TizenFX do sistema. `NativeLibrary.TryLoad` é um diagnóstico do carregador .NET Core 3.1, **não uma autorização para invocar a API VPN**. Se carregar, ainda faltam privilégio de daemon e função VPN permitida; se falhar, não identificar automaticamente se é por sandbox, dependências ou arquitetura.
+
+GitHub Actions v0.3: [run #39042792492](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042792492) **SUCCESS**, artifact **native-tizen60-vpn-loader-diagnostics**. Artefacto não assinado com os certificados do utilizador no GitHub. Descarregar ZIP para Downloads e assinar localmente com script `scripts/install-native-tizen60-test.ps1` (atualizado).
+
+Depois de instalar/abrir na Samsung, fotografar a linha **Carregamento vpnsvc:**. Não executar tentativas de vpnsvc_init ou root enquanto não compreendermos as permissões e o risco de interromper a conectividade.
