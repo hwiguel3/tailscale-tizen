@@ -67,7 +67,7 @@ function Show-SdbLines {
   param($Result, [int]$Max=8)
   @($Result.Output) | Select-Object -Last $Max | ForEach-Object {
     if($_ -is [System.Management.Automation.ErrorRecord]) {
-      Write-Host $_.Exception.Message
+      Write-Host ($_.Exception.Message)
     } else {
       Write-Host ([string]$_)
     }
