@@ -62,7 +62,7 @@ namespace HugoNativeProbe
                     scanned = true;
                     foreach (var entry in Directory.EnumerateFiles(dir, "*vpn*"))
                     {
-                        var name = Path.GetFileName(entry);
+                        var name = System.IO.Path.GetFileName(entry);
                         if (!results.Contains(name)) results.Add(name);
                         if (results.Count >= 5) break;
                     }
