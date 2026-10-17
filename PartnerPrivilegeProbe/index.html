@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hugo Partner Probe</title>
+<script src="$WEBAPIS/webapis/webapis.js"></script>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#16181f;color:#f4f5fa;margin:0;padding:5vh 7vw;font-size:28px}h1{font-size:54px;margin:0 0 20px}.subtitle{color:#c4ccd6;font-size:25px;margin-bottom:45px}section{border:1px solid #465063;background:#242836;border-radius:16px;padding:28px 36px;margin-bottom:24px;min-height:75px;white-space:pre-wrap;overflow-wrap:anywhere}button{font-size:32px;font-weight:bold;color:#151724;background:#f8f9fc;border:0;border-radius:12px;padding:22px 36px;cursor:pointer}button:focus{outline:5px solid #a7bbff}.ok{border-color:#57b989}.warn{border-color:#f4ba6c}.small{color:#aeb6c6;font-size:21px;margin-top:28px}
+</style>
+</head>
+<body>
+<h1>Hugo · Partner Probe</h1>
+<div class="subtitle">Samsung TV | teste local e de leitura | sem alterar VPN nem firmware</div>
+<section id="base">A verificar o Samsung WebAPI...</section>
+<section id="partner">A aguardar teste Partner.</section>
+<button id="check" autofocus>Testar privilégio Partner</button>
+<div class="small">Este teste chama apenas webapis.sso.getVersion().<br>Não testa a API VPN nativa. Premir OK / Enter para repetir.</div>
+<script>
+(function() {
+  "use strict";
+  var base=document.getElementById("base"),p=document.getElementById("partner"),btn=document.getElementById("check");
+  function err(e){return (e&&e.name?e.name+": ":"")+(e&&e.message?e.message:String(e));}
+  function check(){
+    base.className="";p.className="";
+    try {
+      if (!window.webapis || !webapis.appcommon || typeof webapis.appcommon.getVersion!=="function"){
+        base.textContent="Samsung WebAPI base: INDISPONÍVEL (biblioteca ou módulo ausente).";base.className="warn";
+      } else {base.textContent="Samsung WebAPI base: OK. Versão appcommon: "+webapis.appcommon.getVersion();base.className="ok";}
+    }catch(e){base.textContent="Samsung WebAPI base: ERRO — "+err(e);base.className="warn";}
+    try{
+      if(!window.webapis || !webapis.sso || typeof webapis.sso.getVersion!=="function"){
+        p.textContent="Partner SSO: API não encontrada neste ambiente. Não permite concluir se o certificado Partner foi aceite ou se existe VPN.";p.className="warn";return;
+      }
+      var v=webapis.sso.getVersion();
+      p.textContent="Partner SSO: CHAMADA CONCLUÍDA. Versão: "+String(v)+"\nIsto confirma acesso a esta API, NÃO VPN global.";p.className="ok";
+    }catch(e){p.textContent="Partner SSO: ERRO — "+err(e)+"\nSe for SecurityError/PermissionDenied, verificar assinatura Partner e privilégio no manifest. Outros erros podem significar API indisponível.";p.className="warn";}
+  }
+  btn.addEventListener("click",check);
+  document.addEventListener("keydown",function(e){if(e.keyCode===13){e.preventDefault();check();}});
+  check();
+})();
+</script>
+</body>
+</html>
