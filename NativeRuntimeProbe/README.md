@@ -48,3 +48,26 @@ O artefacto tem assinatura experimental do CI, **não** o certificado Samsung pa
 O script verifica o manifesto, re-assina localmente com SamsungTV_Hugo_2 via tizen package -t tpk -s ... -- pacote.tpk, verifica duas assinaturas e tenta **uma única instalação** via CLI com caminho/ficheiro sem espaços. A [documentação oficial da Tizen CLI](https://github.com/Samsung/tizen-docs/blob/master/docs/sdk-tools/baseline-sdk/common-tools/command-line-interface.md) confirma re-assinatura de pacote existente. Nenhuma chave é enviada ao GitHub. A assinatura local ainda não foi testada na máquina do utilizador.
 
 Não tentar instalar o artefacto de CI antes da assinatura local. Se falhar, guardar erro e parar.
+
+## Confirmacao no televisor e diagnóstico nativo 0.2 (17/10/2026)
+
+O utilizador mostrou o TPK com ID com.hugo.nativeprobe instalado e executado na Q60A Tizen 6.0: o ecrã da aplicação NUI apareceu. Isto comprova suporte efetivo a apps .NET TPK neste modelo, **não acesso root nem VPN global**.
+
+A nova versão **0.2.0** faz somente leituras de sistema no próprio processo: existência visível de /dev/net/tun (sem o abrir), /proc/self/status para UID, CapEff e CAP_NET_ADMIN (bit 12), NoNewPrivs, versão de kernel, nomes de interfaces sem IP/MAC e pesquisa superficial de bibliotecas VPN em pastas públicas. Não chama bibliotecas nativas, não muda rotas, não inicia VPN e não faz root.
+
+Compilação e artefacto **confirmados** nas [GitHub Actions #39042322994](https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042322994): job completo SUCCESS, artefacto ZIP **native-tizen60-network-diagnostics** (~19 KB).
+
+### Para instalar v0.2
+
+1. Descarregar para Downloads o ZIP **native-tizen60-network-diagnostics** em https://github.com/hwiguel3/tailscale-tizen/actions/runs/39042322994 (não extrair).
+2. No PowerShell:
+
+    $url = "https://raw.githubusercontent.com/hwiguel3/tailscale-tizen/7afa15f690e6166ae8ae0338c35a00d1af9b4da9/scripts/install-native-tizen60-test.ps1"
+    $script = "$env:TEMP\install-native-network-probe.ps1"
+    Invoke-WebRequest -Uri $url -OutFile $script
+    & $script
+
+3. O script verifica manifesto e re-assina LOCALMENTE com certificado Samsung Partner já configurado. Não carregar P12, passwords ou DUID.
+4. Abrir Hugo Native Network Probe e fotografar. O teste não identifica IP ou MAC.
+
+CAP_NET_ADMIN ausente significa que o processo não tem a capacidade Linux para gerir rotas/interfaces diretamente, mas não prova ausência de qualquer serviço privilegiado. A Samsung proíbe DllImport para bibliotecas TizenFX em apps .NET TV e exige Seller Office Partner para bibliotecas nativas empacotadas: https://developer.samsung.com/smarttv/develop/faq/tizen-net-tv.html .
