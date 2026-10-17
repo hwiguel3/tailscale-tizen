@@ -32,6 +32,6 @@ jobs:
       - name: Upload TEST-only unsigned/SDK-signed package
         uses: actions/upload-artifact@v4
         with:
-          name: native-tizen60-vpn-init-optional
+          name: native-tizen60-sdk-process-check
           path: NativeRuntimeProbe/bin/**/*.tpk
           retention-days: 7
