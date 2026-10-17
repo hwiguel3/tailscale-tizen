@@ -26,6 +26,16 @@ if ($attached.Count -ne 1) {
     exit 1
 }
 Write-Host 'Ligacao SDB: 1 TV detetada (identificadores ocultados).'
+# Retail Samsung Q60A reports intershell_support:disabled.
+# Do not infer 'no VPN' from silent commands when shell itself is restricted.
+$caps = @(& $Sdb capability 2>&1)
+if ($caps -match 'intershell_support\s*:\s*disabled') {
+    Write-Host 'Shell SDB restrita nesta TV (intershell_support:disabled).'
+    Write-Host 'Os comandos id/ls/uname podem devolver vazio; este diagnóstico não testa a VPN.'
+    Write-Host 'Continua com PartnerPrivilegeProbe/ (app Web assinada Partner).'
+    exit 0
+}
+
 
 function Invoke-ReadOnly {
     param(
