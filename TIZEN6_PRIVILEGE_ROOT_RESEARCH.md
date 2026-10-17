@@ -129,3 +129,13 @@ Se a UI disponibilizar este percurso, o próximo trabalho é comparação **offl
 ### Risco e limite técnico
 
 Não copiar exploits da Q60T ou flashear firmware de outra série. Samsung publica T-NKLADEUC 2301.1 para Q60A em 28/01/2026, mas um ficheiro USB oficial não é garantia de recuperação após modificar a partição de arranque. Mesmo root temporário não comprova suporte do kernel para TUN/roteamento; será preciso validá-lo antes de instalar Tailscale como exit node client global.
+
+## Ordem de investigação revista — prioridade à via não-root (17/10/2026)
+
+**Correção de rumo pedida pelo utilizador:** testar primeiro o método **Bishop Fox SDB** para obter comandos como `sdk` sem root; só depois, se necessário e após avaliação de riscos, estudar a via **Remote PC/CIFS com possível UID 0**. Ter encontrado o menu "PC on TV" na Q60A não demonstra vulnerabilidade na versão T-NKLADEUC-2301.1.
+
+1. **SDB não-root, validação mínima:** confirmar requisitos já satisfeitos (Developer Mode, SDB conectado; a shell normal está bloqueada nesta Samsung). Reproduzir apenas um marcador local/consulta `id` com *proof of concept* não persistente e sem reverse shell nem alterações de firmware. **Não assumir** que funciona: [Bishop Fox](https://bishopfox.com/blog/samsung-tizen-os-version-through-9-0) testou Tizen 5.5, 7.0, 8.0 e 9.0, mas **não Tizen 6.0**. Para qualquer tentativa, confirmar explicitamente o consentimento do dono do equipamento e manter o teste de um único comando sem alteração de sistema.
+2. Se a execução como `sdk` funcionar, verificar apenas permissões/capacidades e acesso a componentes de rede em modo leitura, comparando com a app .NET (UID 5001; CapEff=0; /dev/net/tun invisível). **Execução como sdk não é root** e não basta para configurar VPN global. Só avançar se revelar capacidade útil para integração com Tailscale.
+3. Se a via SDB não permitir gestão de rede, avaliar root Remote PC/CIFS **offline** e com firmware/modelo exatos, antes de qualquer teste de escalada. A prova [tiz0wn](https://github.com/sebastianspicker/tiz0wn) refere-se a Q60T/firmware diferente. Preparar recuperação antes de qualquer modificação persistente.
+
+**Viabilidade relativa:** SDB não-root é o primeiro teste mais barato e reversível, porém pode não resolver o objetivo final. Root daria permissões potencialmente mais relevantes, mas é mais arriscado e não está demonstrado nesta Q60A. Não há percentagens de sucesso defensáveis. Manter clara a distinção entre *obter alguma execução* e *encaminhar o tráfego de todas as apps da televisão*.
