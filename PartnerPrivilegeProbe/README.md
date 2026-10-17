@@ -74,3 +74,20 @@ Para verificar a CLI em modo só de leitura:
 ```
 
 **Nunca partilhar `profiles.xml`, `.p12` nem palavras-passe.** Ocultar caminhos pessoais se necessário.
+
+## Resultado real: CLI sem perfil da extensão VS Code (17/10/2026, 15:01)
+
+A fotografia do PowerShell mostrou `O perfil SamsungTV_Hugo_2 existe no Certificate Manager mas NAO esta acessivel a esta CLI Tizen` e não encontrou `profiles.xml` nas pastas habituais. Isto é **diferença entre Certificate Manager da extensão VS Code e a CLI clássica**; não é prova de problema do certificado.
+
+O helper Windows foi novamente atualizado para:
+1. procurar um `profiles.xml` reutilizável;
+2. se não existir, localizar **ambos os .p12** do perfil já criado em `%USERPROFILE%\SamsungCertificate\SamsungTV_Hugo_2\` ou no keystore do Tizen Studio;
+3. pedir **apenas no PC** passwords do autor e distribuidor através de `Read-Host -AsSecureString`, com entrada oculta;
+4. executar `tizen security-profiles add -n ... -a ... -p ... -d ... -dp ...` para **registar** o perfil na CLI, sem recriar certificados;
+5. verificar de novo `tizen security-profiles list` e validar assinaturas `author-signature.xml`/`signature1.xml` antes de qualquer instalação.
+
+O comando oficial CLI usa `-dp` para password do distribuidor; a ferramenta `tz` diferente usa `-P`. Referência: https://github.com/Samsung/tizen-docs/blob/master/docs/sdk-tools/baseline-sdk/common-tools/command-line-interface.md
+
+Segurança: a interface CLI clássica recebe passwords como argumentos de processo no Windows, que poderão ficar temporariamente visíveis a ferramentas locais de monitorização. Não enviar passwords para o ChatGPT/GitHub nem guardar logs dessa execução. Não executar o script em PCs de terceiros ou sujeitos a monitorização não confiável.
+
+Se a nova tentativa não encontrar os .p12, parar e localizar a pasta através do Certificate Manager, sem repetir compilação.
