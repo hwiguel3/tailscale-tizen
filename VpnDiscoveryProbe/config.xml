@@ -2,10 +2,11 @@
 <widget xmlns="http://www.w3.org/ns/widgets"
  xmlns:tizen="http://tizen.org/ns/widgets"
  id="https://example.org/hugo-vpn-discovery"
- version="1.0.0" viewmodes="fullscreen">
+ version="1.0.1" viewmodes="fullscreen">
  <tizen:application id="HugoTVV001.VpnDiscovery" package="HugoTVV001" required_version="6.0"/>
  <tizen:profile name="tv"/>
  <content src="index.html"/>
+ <tizen:privilege name="http://tizen.org/privilege/system"/>
  <name>Hugo VPN Discovery</name>
  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>
