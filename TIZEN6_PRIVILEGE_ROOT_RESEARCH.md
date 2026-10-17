@@ -146,3 +146,30 @@ Não copiar exploits da Q60T ou flashear firmware de outra série. Samsung publi
 - **Resultado inconclusivo**: `closed` é esperado na Samsung com shell restringida, mesmo nos exemplos vulneráveis da Bishop Fox. Não demonstra execução nem correção.
 - Corrigido o helper (commit `d1c79488383ede02523d35dd7835a850969b1af4`) para tolerar erro de stderr/não-zero apenas nas chamadas SDB e **tentar sempre o pull**, mostrando o estado final com interpretação prudente.
 - Próximo passo: executar **uma** vez o teste corrigido com token novo. Se o `pull` não encontrar ficheiro, não concluir que a vulnerabilidade está corrigida; avaliar prova alternativa sem alterações da TV. Nunca pedir shell root nem comandos persistentes como parte deste teste.
+
+## Resultado definitivo do teste não-root sdk (17/10/2026)
+
+**Comprovado por fotografia do PowerShell após execução controlada via vulnerabilidade SDB na própria Q60A (Tizen 6.0 / T-NKLADEUC-2301.1):**
+
+```text
+Name: cat
+Uid: 901 901 901 901
+Gid: 901 901 901 901
+CapEff: 0000000000000000
+CapPrm: 0000000000000000
+CapBnd: 0000003fffffffff
+Seccomp: 0
+CAP_NET_ADMIN sdk: AUSENTE
+CAP_NET_RAW sdk: AUSENTE
+```
+
+A segunda prova SDB fez `cat</proc/self/status`, escreveu um ficheiro temporário, que foi recuperado via `sdb pull`. Demonstração de execução de comandos como UID 901, não root. O processo efetivamente executado NÃO tem capacidade Linux para administrar diretamente interfaces/rotas da TV. O valor CapBnd não concede efetivamente essa capacidade.
+
+Outras barreiras já demonstradas em testes reais:
+- App nativa .NET TV (UID 5001): CapEff=0; /dev/net/tun não visível.
+- Tizen WebAPI: `network.vpn=false`.
+- lib `libcapi-vpnsvc.so.1` carrega e exporta init/deinit, **mas** `vpnsvc_init` devolve `0xC0000002 = TIZEN_ERROR_NOT_SUPPORTED`.
+
+**Decisão:** Para a meta estrita *encaminhar automaticamente TODO o tráfego das apps da TV Samsung através do Chromecast como exit node Tailscale*, **não há via rootless utilizável demonstrada**. O modo userspace/tsnet/proxy do Tailscale pode gerir ligações de apps que aceitem explicitamente SOCKS/HTTP, mas NÃO intercepta o tráfego de apps alheias. Não confundir com VPN global. Sem `CAP_NET_ADMIN` efetiva ou API de VPN funcional, não investir em interface/integração Tailscale como se essa meta estivesse desbloqueada. Uma interface privilegiada autorizada diferente não foi excluída matematicamente, mas não foi identificada.
+
+A exploração Bishop Fox provou execução, não privilégio para administrar a rede. Não repetir diagnósticos `/proc` arbitrários; as perguntas centrais já foram respondidas. Próximo passo justificável: avaliação estática, específica ao firmware e sem qualquer escrita na TV, da viabilidade de acesso privilegiado/root (por exemplo Remote PC/CIFS) com mecanismo de recuperação definido antes de executar no equipamento. Utilizador pediu esgotar primeiro via sem root; respeitar decisão e não tentar exploração privilegiada sem confirmação explícita.
