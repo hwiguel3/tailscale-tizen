@@ -68,3 +68,19 @@ O GitHub Actions atual somente demonstra compilação Linux ARMv7 do Tailscale, 
 - **Privacidade:** não reproduzir números de série, MAC, DUID, Smart Hub IDs ou outros identificadores que surgem nas fotos.
 
 **Próximo teste seguro:** confirmar que o certificado Partner contém o DUID do equipamento e que a instalação de um pacote assinado funciona. Depois, validar se `vpnsvc_init` está disponível e autoriza criar um handle em Tizen 6.0 TV, sem alterar rotas ou aplicar privilégios elevados. Evitar tentativas de root ou firmware até esgotar esta via.
+
+## Marco confirmado: chamada Partner WebAPI autorizada na Q60A (17/10/2026)
+
+Imagens recebidas comprovam:
+- O WGT `HugoTVP001.PartnerProbe` instalou corretamente usando um nome e caminho de ficheiro **sem espaços**, mantendo o SHA256 do WGT assinado.
+- A aplicação abriu na TV e apresentou `Samsung WebAPI base: OK. Versão appcommon: 3.3`.
+- `webapis.sso.getVersion()` devolveu **`3.1`**. A [documentação oficial da Samsung](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/sso-api.html) declara que este método requer o privilégio **Partner** `http://developer.samsung.com/privilege/sso.partner` e pode lançar `SecurityError` sem esse privilégio.
+- Isto é **evidência de chamada WebAPI Partner funcional**, mas **não demonstra VPN global nem uma API VPN Web**.
+
+### Próxima verificação sem tocar nas rotas
+
+A [documentação de common app controls nativos do Tizen](https://github.com/Samsung/tizen-docs/blob/master/docs/application/native/guides/app-management/common-appcontrols.md) refere a operação `http://tizen.org/appcontrol/operation/setting/vpn`, que pode existir ou não no dispositivo. A [Web Application API](https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/application-api.html) disponibiliza `tizen.application.findAppControl()`, para procurar aplicações registadas para esta operação.
+
+Foi criado o `VpnDiscoveryProbe` para procurar **sem executar** a operação VPN e, como controlo, a operação de definições gerais. Isto **não chama** `vpnsvc_init`, não expõe acesso a TUN, não altera as rotas e um resultado negativo não prova ausência de serviço nativo. O script existente para Windows suporta `-Variant VpnDiscovery -Install`, gera `.wgt` assinado com o perfil local e instala através de caminho sem espaços.
+
+**Limitação ainda ativa:** a [FAQ oficial Smart TV da Samsung](https://developer.samsung.com/smarttv/develop/faq/application-testing.html) afirma que televisões Samsung suportam pacotes Web `.wgt`, **não** pacotes nativos `.tpk`. Um certificado Partner Web não resolve esta distinção; é por isso que testar o alcance real do serviço VPN tem de ser separado da simples autenticação Tailscale.
