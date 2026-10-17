@@ -58,3 +58,13 @@ Samsung TV (Tizen 6.0 / ARMv7) usa Chromecast na tailnet como **exit node para o
 - Publicar chaves privadas Samsung ou detalhes identificadores da TV.
 
 O GitHub Actions atual somente demonstra compilação Linux ARMv7 do Tailscale, não instalação, root nem VPN global.
+
+## Dados confirmados por imagem (17/10/2026)
+
+- **Modelo:** Samsung `QE43Q60AAUXXH` (Q60A, versão europeia).
+- **Firmware:** `T-NKLADEUC-2301.1`.
+- **Sistema via SDB:** Tizen 6.0 / ARMv7, sem root disponível.
+- **Certificado:** no Certificate Manager, o perfil `SamsungTV_Hugo_2` aparece ativo e o certificado de distribuição indica `VD DEVELOPER Partner CA Class`, validade até 17/10/2027. Isto é forte evidência de um **distributor Partner genuíno para testes**; ainda não confirma se inclui o DUID da TV nem se a TV autoriza a API VPN.
+- **Privacidade:** não reproduzir números de série, MAC, DUID, Smart Hub IDs ou outros identificadores que surgem nas fotos.
+
+**Próximo teste seguro:** confirmar que o certificado Partner contém o DUID do equipamento e que a instalação de um pacote assinado funciona. Depois, validar se `vpnsvc_init` está disponível e autoriza criar um handle em Tizen 6.0 TV, sem alterar rotas ou aplicar privilégios elevados. Evitar tentativas de root ou firmware até esgotar esta via.
