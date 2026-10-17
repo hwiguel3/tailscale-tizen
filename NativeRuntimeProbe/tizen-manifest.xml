@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns="http://tizen.org/ns/packages"
+    api-version="6.0"
+    package="com.hugo.nativeprobe"
+    version="0.1.0">
+  <profile name="tv"/>
+  <ui-application appid="com.hugo.nativeprobe"
+       exec="HugoNativeProbe.dll"
+       type="dotnet"
+       multiple="false"
+       taskmanage="true"
+       nodisplay="false">
+    <label>Hugo Native Probe</label>
+  </ui-application>
+</manifest>
