@@ -22,69 +22,98 @@ $cli=Join-Path $TizenStudio 'tools\ide\bin\tizen.bat'
 $sdb=Join-Path $TizenStudio 'tools\sdb.exe'
 if (!(Test-Path -LiteralPath $cli)) { throw "Nao encontrei a CLI Tizen: $cli" }
 if ($Install -and !(Test-Path -LiteralPath $sdb)) { throw "Nao encontrei SDB: $sdb" }
-# Confirmar que a CLI e o Certificate Manager veem o mesmo perfil.
-# Sem isto, o comando "tizen package" pode terminar com codigo 0
-# mas gerar um .wgt SEM author-signature.xml e signature1.xml.
+# O Certificate Manager da extensao VS Code pode guardar os .p12,
+# sem registar um perfil na CLI classica do Tizen Studio.
+# A CLI nao assina pacotes sem o seu proprio perfil XML.
+# E seguro importar os mesmos .p12 sem gerar um novo certificado.
 function Has-CertificateProfile {
   param([string]$Path, [string]$Name)
   if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){return $false}
-  try{
-    [xml]$doc = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
-    foreach($node in @($doc.SelectNodes("//*[local-name()='profileitem' or local-name()='profile']"))){
+  try {
+    [xml]$doc=Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    foreach($node in @($doc.SelectNodes("//*[local-name()='profile' or local-name()='profileitem']"))){
       if($node.GetAttribute('name') -eq $Name){return $true}
     }
-  } catch { return $false }
+  } catch {return $false}
   return $false
 }
-
+function Profile-InCli {
+  param([string]$Name)
+  $result=@(& $cli security-profiles list 2>&1)
+  return [bool](@($result | Where-Object { ($_ -replace '^\s+|\s+$','') -eq $Name }).Count -gt 0)
+}
 Write-Host "A validar a configuracao de assinatura Samsung para '$Profile'..."
-$existingList = @(& $cli security-profiles list 2>&1)
-$cliSeesProfile = ($existingList -match [regex]::Escape($Profile)).Count -gt 0
-$candidates = @()
-if($ProfilesXml){$candidates += $ProfilesXml}
-$candidates += @(
-  'C:\tizen-studio-data\profile\profiles.xml',
-  (Join-Path $env:USERPROFILE 'tizen-studio-data\profile\profiles.xml'),
-  (Join-Path $env:USERPROFILE 'SamsungCertificate\profiles.xml'),
-  (Join-Path $env:USERPROFILE 'workspace\.metadata\.plugins\org.tizen.common.sign\profiles.xml'),
-  (Join-Path $env:USERPROFILE '.metadata\.plugins\org.tizen.common.sign\profiles.xml')
-)
-# O certificado pode ter sido criado no VS Code, noutro workspace:
-$parentDirs = @(
-  (Join-Path $env:USERPROFILE 'Documents'),
-  (Join-Path $env:USERPROFILE 'source'),
-  (Join-Path $env:USERPROFILE 'SamsungCertificate')
-)
-foreach($parent in $parentDirs){
-  if(Test-Path -LiteralPath $parent -PathType Container){
-    $candidates += Join-Path $parent 'profiles.xml'
-    $candidates += Join-Path $parent '.metadata\.plugins\org.tizen.common.sign\profiles.xml'
+$cliSeesProfile=Profile-InCli -Name $Profile
+if(-not $cliSeesProfile){
+  # Primeiro aproveitar XML existente, se conhecido. Nao ler chaves nem senhas.
+  $paths=@()
+  if($ProfilesXml){$paths+= $ProfilesXml}
+  $paths+=@(
+    (Join-Path $env:USERPROFILE 'tizen-studio-data\profile\profiles.xml'),
+    (Join-Path $env:USERPROFILE 'workspace\.metadata\.plugins\org.tizen.common.sign\profiles.xml'),
+    'C:\tizen-studio-data\profile\profiles.xml',
+    (Join-Path $env:USERPROFILE 'SamsungCertificate\profiles.xml')
+  )
+  $matches=@($paths | Select-Object -Unique | Where-Object {Has-CertificateProfile -Path $_ -Name $Profile})
+  if($ProfilesXml -and -not (Has-CertificateProfile -Path $ProfilesXml -Name $Profile)){
+    throw "O -ProfilesXml indicado nao contem o perfil '$Profile'."
   }
-}
-$located = @($candidates | Select-Object -Unique | Where-Object { Has-CertificateProfile -Path $_ -Name $Profile })
-if($ProfilesXml -and $located.Count -eq 0){
-  throw "O ficheiro -ProfilesXml indicado nao existe ou nao contem o perfil '$Profile'. Nao se fez nenhuma alteracao."
-}
-if($ProfilesXml -or (-not $cliSeesProfile -and $located.Count -eq 1)){
-  $selected = $located[0]
-  Write-Host "Encontrei o perfil num profiles.xml local. A associar a CLI a esse ficheiro (alteracao persistente na configuracao da CLI, nao nos certificados)."
-  & $cli cli-config "default.profiles.path=$selected"
-  if($LASTEXITCODE -ne 0){throw 'Falha ao definir default.profiles.path na CLI.'}
-  $existingList = @(& $cli security-profiles list 2>&1)
-  $cliSeesProfile = ($existingList -match [regex]::Escape($Profile)).Count -gt 0
+  if($matches.Count -eq 1){
+    Write-Host 'A configurar a CLI para o profiles.xml existente (certificados inalterados).'
+    & $cli cli-config "default.profiles.path=$($matches[0])"
+    if($LASTEXITCODE -ne 0){throw "Falha ao configurar default.profiles.path."}
+    $cliSeesProfile=Profile-InCli -Name $Profile
+  }
 }
 if(-not $cliSeesProfile){
-  Write-Host "O perfil '$Profile' existe no Certificate Manager mas NAO esta acessivel a esta CLI Tizen."
-  if($located.Count -gt 1){
-    Write-Host "Foram encontrados varios profiles.xml com esse perfil; para escolher, passa -ProfilesXml 'caminho\profiles.xml'."
-  }elseif($located.Count -eq 0){
-    Write-Host "Nao encontrei profiles.xml com esse perfil nos locais habituais."
-    Write-Host "Verifica Certificate Manager > perfil SamsungTV_Hugo_2 e o local de profiles.xml. Nao envies XML, .p12 nem passwords."
+  # No caso concreto SamsungTV_Hugo_2, o Certificate Manager mostrou
+  # os ficheiros em $env:USERPROFILE\SamsungCertificate\SamsungTV_Hugo_2.
+  $certDirs=@(
+    (Join-Path (Join-Path $env:USERPROFILE 'SamsungCertificate') $Profile),
+    (Join-Path (Join-Path $env:USERPROFILE 'tizen-studio-data\keystore\samsung') $Profile),
+    (Join-Path 'C:\tizen-studio-data\keystore\samsung' $Profile)
+  )
+  $certDir=$null
+  foreach($candidate in $certDirs){
+    if((Test-Path -LiteralPath (Join-Path $candidate 'author.p12')) -and
+       (Test-Path -LiteralPath (Join-Path $candidate 'distributor.p12'))){
+      $certDir=$candidate; break
+    }
   }
-  Write-Host "Diagnostico adicional SEGURO: & 'C:\tizen-studio\tools\ide\bin\tizen.bat' cli-config -l | Select-String 'profiles.path'"
-  throw "Assinatura indisponivel: nao vou gerar outra vez um WGT sem certificado Partner."
+  if(-not $certDir){
+    Write-Host 'Nao encontrei um par author.p12/distributor.p12 na pasta SamsungCertificate ou Tizen Studio.'
+    Write-Host 'Abre Certificate Manager e confirma onde guardou os .p12; nao os envies nem envies passwords.'
+    throw 'Falta localizar o certificado existente (nenhuma alteracao realizada).'
+  }
+  Write-Host "Encontrei os certificados Samsung locais na pasta do perfil '$Profile'."
+  Write-Host 'Vou REGISTAR os certificados ja existentes na CLI, SEM os recriar.'
+  Write-Host 'As passwords serao pedidas localmente, ocultas. Nunca as envies pelo ChatGPT.'
+  $authorSecure=Read-Host 'Password do certificado author' -AsSecureString
+  $distSecure=Read-Host 'Password do certificado distributor' -AsSecureString
+  $p1=[IntPtr]::Zero; $p2=[IntPtr]::Zero
+  $authorText=$null; $distText=$null
+  try {
+    $p1=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($authorSecure)
+    $p2=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($distSecure)
+    $authorText=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($p1)
+    $distText=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($p2)
+    # A CLI Tizen aceita -dp (distributor password), nao -P (sintaxe tz).
+    # Nota: tizen.bat recebe estas passwords como argumentos locais; nao gravar logs.
+    & $cli security-profiles add -n $Profile -a (Join-Path $certDir 'author.p12') -p $authorText -d (Join-Path $certDir 'distributor.p12') -dp $distText
+    if($LASTEXITCODE -ne 0){throw "A CLI nao conseguiu registar os .p12 (codigo $LASTEXITCODE)."}
+  } finally {
+    $authorText=$null; $distText=$null; $authorSecure=$null; $distSecure=$null
+    if($p1 -ne [IntPtr]::Zero){[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($p1)}
+    if($p2 -ne [IntPtr]::Zero){[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($p2)}
+  }
+  $cliSeesProfile=Profile-InCli -Name $Profile
 }
-Write-Host "Perfil '$Profile' confirmado na CLI. Continuar build."
+if(-not $cliSeesProfile){
+  Write-Host "Ainda nao ha perfil '$Profile' utilizavel pela CLI Tizen."
+  Write-Host 'Pede ajuda com a mensagem de erro, sem copiar .p12, XML ou passwords.'
+  throw 'Assinatura indisponivel. A compilacao foi interrompida.'
+}
+Write-Host "Perfil '$Profile' confirmado na CLI. A avancar para a compilacao."
 
 $dir=Join-Path ([IO.Path]::GetTempPath()) ('HugoPartnerProbe_'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
