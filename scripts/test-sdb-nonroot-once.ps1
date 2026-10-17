@@ -38,14 +38,52 @@ $local=Join-Path $env:TEMP ("hugo_sdb_probe_"+$token+".txt")
 # resultado em /tmp. A tentativa de instalar 'test.tpk.tpk' pode falhar.
 $payload='0 appinstall tpk test.tpk$(id>{0}).tpk' -f $remote
 
-Write-Host '1/2 — Teste SDB local (um comando, sem persistencia)...'
-$cmdOut=@(& $Sdb shell $payload 2>&1)
-$cmdOut | Select-Object -Last 8 | ForEach-Object {Write-Host $_}
+# O PowerShell 5.1 converte stderr de executaveis nativos em
+# NativeCommandError. Com ErrorActionPreference=Stop interrompia o
+# script quando SDB respondia "closed", ANTES do teste sdb pull.
+# "closed" pode ser normal neste tipo de shell Samsung e, por si
+# so, NAO comprova nem exclui execucao do payload.
+# Isolar a permissividade apenas nas duas chamadas SDB.
+function Invoke-SdbDiagnostic {
+  param([string[]]$Arguments)
+  $output=@()
+  $exitCode=$null
+  $savedPreference=$ErrorActionPreference
+  try {
+    $ErrorActionPreference='Continue'
+    try {
+      $output=@(& $Sdb @Arguments 2>&1)
+      $exitCode=$LASTEXITCODE
+    } catch {
+      $output+=($_.Exception.Message)
+      $exitCode=$LASTEXITCODE
+    }
+  } finally {
+    $ErrorActionPreference=$savedPreference
+  }
+  return [pscustomobject]@{ Output=$output; ExitCode=$exitCode }
+}
+function Show-SdbLines {
+  param($Result, [int]$Max=8)
+  @($Result.Output) | Select-Object -Last $Max | ForEach-Object {
+    if($_ -is [System.Management.Automation.ErrorRecord]) {
+      Write-Host $_.Exception.Message
+    } else {
+      Write-Host ([string]$_)
+    }
+  }
+  Write-Host "SDB exit code: $($Result.ExitCode)"
+}
+
+Write-Host '1/2 — Tentativa pontual SDB (um comando id, sem persistencia)...'
+$shellResult=Invoke-SdbDiagnostic -Arguments @('shell', $payload)
+Show-SdbLines -Result $shellResult
 
 Write-Host '2/2 — A tentar recuperar o resultado de /tmp via SDB pull...'
-$pullOut=@(& $Sdb pull $remote $local 2>&1)
+$pullResult=Invoke-SdbDiagnostic -Arguments @('pull', $remote, $local)
 if(Test-Path -LiteralPath $local -PathType Leaf){
-  $value=(Get-Content -LiteralPath $local -Raw -ErrorAction SilentlyContinue).Trim()
+  $raw=Get-Content -LiteralPath $local -Raw -ErrorAction SilentlyContinue
+  $value=if($null -ne $raw){$raw.Trim()}else{''}
   if($value -match '^uid=\d+\(') {
     Write-Host 'PROVA DE EXECUCAO NA TV:'
     Write-Host $value
@@ -57,6 +95,6 @@ if(Test-Path -LiteralPath $local -PathType Leaf){
   Write-Host 'Resultado INCONCLUSIVO: ficheiro nao recuperado por SDB pull.'
   Write-Host 'O teste pode estar corrigido, ter sido bloqueado, ou o pull pode nao aceder a /tmp.'
   Write-Host 'Mensagem resumida do pull:'
-  $pullOut | Select-Object -Last 7 | ForEach-Object {Write-Host $_}
+  Show-SdbLines -Result $pullResult -Max 7
 }
 Write-Host 'Fim. Nao foram pedidas passwords nem foram alteradas rotas, VPN ou firmware.'
