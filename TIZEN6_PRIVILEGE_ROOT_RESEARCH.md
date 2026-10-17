@@ -139,3 +139,10 @@ Não copiar exploits da Q60T ou flashear firmware de outra série. Samsung publi
 3. Se a via SDB não permitir gestão de rede, avaliar root Remote PC/CIFS **offline** e com firmware/modelo exatos, antes de qualquer teste de escalada. A prova [tiz0wn](https://github.com/sebastianspicker/tiz0wn) refere-se a Q60T/firmware diferente. Preparar recuperação antes de qualquer modificação persistente.
 
 **Viabilidade relativa:** SDB não-root é o primeiro teste mais barato e reversível, porém pode não resolver o objetivo final. Root daria permissões potencialmente mais relevantes, mas é mais arriscado e não está demonstrado nesta Q60A. Não há percentagens de sucesso defensáveis. Manter clara a distinção entre *obter alguma execução* e *encaminhar o tráfego de todas as apps da televisão*.
+
+## Primeiro teste SDB não-root e correção do PowerShell (17/10/2026)
+
+- Foto do PowerShell após executar `scripts/test-sdb-nonroot-once.ps1`: TV ligada via SDB; a chamada `sdb shell` respondeu `closed`. O PowerShell 5.1 converteu stderr em `NativeCommandError` com `ErrorActionPreference='Stop'` e interrompeu o script na linha 42 **antes de executar `sdb pull`**.
+- **Resultado inconclusivo**: `closed` é esperado na Samsung com shell restringida, mesmo nos exemplos vulneráveis da Bishop Fox. Não demonstra execução nem correção.
+- Corrigido o helper (commit `d1c79488383ede02523d35dd7835a850969b1af4`) para tolerar erro de stderr/não-zero apenas nas chamadas SDB e **tentar sempre o pull**, mostrando o estado final com interpretação prudente.
+- Próximo passo: executar **uma** vez o teste corrigido com token novo. Se o `pull` não encontrar ficheiro, não concluir que a vulnerabilidade está corrigida; avaliar prova alternativa sem alterações da TV. Nunca pedir shell root nem comandos persistentes como parte deste teste.
